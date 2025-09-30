@@ -1,0 +1,16 @@
+{
+  "name": "tsushima-duel",
+  "version": "1.0.0",
+  "description": "3D action game inspired by Ghost of Tsushima dueling scenes",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "serve": "npx http-server -p 8000"
+  },
+  "keywords": ["threejs", "game", "3d", "action", "samurai"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

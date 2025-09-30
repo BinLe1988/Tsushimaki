@@ -1,0 +1,1992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tsushima Duel</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        #gameContainer {
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            z-index: 100;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            z-index: 100;
+            font-size: 14px;
+        }
+        #weaponSelector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .weapon-btn {
+            display: block;
+            margin: 5px 0;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #fff;
+            color: white;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .weapon-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .weapon-btn.active {
+            background: rgba(255,215,0,0.3);
+            border-color: #ffd700;
+        }
+        #mountSelector {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            z-index: 100;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .mount-btn {
+            display: inline-block;
+            margin: 3px;
+            padding: 6px 10px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid #fff;
+            color: white;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 11px;
+        }
+        .mount-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .mount-btn.active {
+            background: rgba(0,255,0,0.3);
+            border-color: #00ff00;
+        }
+        #customizationToggle {
+            position: absolute;
+            top: 300px;
+            right: 20px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer"></div>
+    <div id="ui">
+        <div>Player Health: <span id="health">100</span></div>
+        <div>Enemy Health: <span id="enemyHealth">100</span></div>
+        <div>State: <span id="state">Idle</span></div>
+        <div id="skills">
+            <div>Q - 旋风斩: <span id="whirlwind">Ready</span></div>
+            <div>E - 雷霆击: <span id="thunder">Ready</span></div>
+            <div>Z - 天山问客: <span id="tianshan">Ready</span></div>
+        </div>
+    </div>
+    <div id="controls">
+        WASD: Move | Mouse: Look | Space: Attack/Shoot Arrow | Shift: Block<br>
+        Q: 旋风斩 | E: 雷霆击 | Z: 天山问客<br>
+        弓箭: 30点伤害，自动瞄准，有飞行轨迹
+    </div>
+    <div id="weaponSelector">
+        <div style="margin-bottom: 10px; font-weight: bold;">选择武器:</div>
+        <button class="weapon-btn active" data-weapon="katana">单手刀</button>
+        <button class="weapon-btn" data-weapon="sword">单手剑</button>
+        <button class="weapon-btn" data-weapon="greatsword">双手大剑</button>
+        <button class="weapon-btn" data-weapon="odachi">大太刀</button>
+        <button class="weapon-btn" data-weapon="spear">枪</button>
+        <button class="weapon-btn" data-weapon="bow">弓箭</button>
+    </div>
+    <div id="mountSelector">
+        <div style="margin-bottom: 8px; font-weight: bold;">选择坐骑:</div>
+        <button class="mount-btn" data-mount="none">步行</button>
+        <button class="mount-btn active" data-mount="chitu">赤兔</button>
+        <button class="mount-btn" data-mount="dilu">的卢</button>
+        <button class="mount-btn" data-mount="jueying">绝影</button>
+        <button class="mount-btn" data-mount="zhuahuang">爪黄飞电</button>
+        <button class="mount-btn" data-mount="zhaoyeyushi">照夜玉狮子</button>
+        <button class="mount-btn" data-mount="wuyuntaxue">乌云踏雪</button>
+        <button class="mount-btn" data-mount="zishen">紫骍</button>
+        <button class="mount-btn" data-mount="jingfan">惊帆</button>
+        <button class="mount-btn" data-mount="lifeisha">里飞沙</button>
+    </div>
+    <div id="customizationToggle">
+        <button onclick="toggleCustomization()" style="background: #FF6B35; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">武士定制</button>
+    </div>
+    <div id="customization-panel" style="position: absolute; top: 300px; right: 10px; background: rgba(0,0,0,0.9); color: white; padding: 15px; border-radius: 8px; font-family: Arial; display: none; min-width: 200px;">
+        <h3 style="margin-top: 0;">武士定制</h3>
+        
+        <div style="margin-bottom: 10px;">
+            <label>脸型:</label>
+            <select id="face-shape" style="width: 100%; margin-top: 3px;">
+                <option value="normal">普通</option>
+                <option value="round">圆脸</option>
+                <option value="square">方脸</option>
+                <option value="long">长脸</option>
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <label>肤色:</label>
+            <select id="skin-color" style="width: 100%; margin-top: 3px;">
+                <option value="0xFFDBB5">浅色</option>
+                <option value="0xE6B887">中等</option>
+                <option value="0xD2B48C">小麦色</option>
+                <option value="0xCD853F">深色</option>
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <label>身材:</label>
+            <select id="body-type" style="width: 100%; margin-top: 3px;">
+                <option value="normal">标准</option>
+                <option value="slim">瘦削</option>
+                <option value="muscular">健壮</option>
+                <option value="heavy">厚重</option>
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <label>服装颜色:</label>
+            <select id="clothing-color" style="width: 100%; margin-top: 3px;">
+                <option value="0x2c3e50">深蓝</option>
+                <option value="0x8B0000">深红</option>
+                <option value="0x2F4F4F">深灰</option>
+                <option value="0x4B0082">紫色</option>
+                <option value="0x006400">深绿</option>
+                <option value="0x8B4513">棕色</option>
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label>头发:</label>
+            <select id="hair-style" style="width: 100%; margin-top: 3px;">
+                <option value="topknot">武士髻</option>
+                <option value="long">长发</option>
+                <option value="short">短发</option>
+                <option value="bald">光头</option>
+            </select>
+        </div>
+        
+        <button onclick="applyCustomization()" style="background: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; width: 48%; margin-right: 4%;">应用</button>
+        <button onclick="toggleCustomization()" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 3px; cursor: pointer; width: 48%;">关闭</button>
+    </div>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js"
+        }
+    }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        
+        // 全局游戏实例
+        let game;
+        
+        class TsushimaDuel {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                
+                this.keys = {};
+                this.mouse = { x: 0, y: 0 };
+                this.player = null;
+                this.enemy = null;
+                this.playerState = 'idle';
+                this.playerHealth = 100;
+                this.currentWeapon = 'katana';
+                this.currentMount = 'chitu';
+                this.playerMounted = true;
+                this.enemyMounted = true;
+                
+                // 坐骑生命值
+                this.playerMountHealth = 200;
+                this.enemyMountHealth = 200;
+                
+                // 角色定制属性
+                this.customization = {
+                    faceShape: 'normal',
+                    skinColor: 0xFFDBB5,
+                    bodyType: 'normal',
+                    clothingColor: 0x2c3e50,
+                    hairStyle: 'topknot'
+                };
+                
+                // 敌人AI状态
+                this.enemyState = 'idle';
+                this.enemyHealth = 100;
+                this.lastEnemyAction = 0;
+                this.enemyRecoveryTime = 0; // 受击后恢复时间
+                this.enemyDefensiveMode = false; // 防御模式
+                
+                // 技能系统
+                this.skills = {
+                    whirlwind: { name: '旋风斩', key: 'KeyQ', cooldown: 15000, lastUsed: 0 },
+                    thunder: { name: '雷霆击', key: 'KeyE', cooldown: 15000, lastUsed: 0 },
+                    tianshan: { name: '天山问客', key: 'KeyZ', cooldown: 15000, lastUsed: 0 }
+                };
+                
+                // 箭矢系统
+                this.arrows = [];
+                
+                // 牲畜系统
+                this.livestock = [];
+                
+                // 音效系统
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                this.init();
+            }
+
+            init() {
+                this.setupRenderer();
+                this.setupLighting();
+                this.setupScene();
+                this.setupPlayer();
+                this.setupEnemy();
+                this.spawnLivestock();
+                this.setupControls();
+                this.setupCamera();
+                this.animate();
+                
+                console.log('Game initialized successfully!');
+            }
+
+            setupRenderer() {
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.setClearColor(0x87CEEB, 1);
+                document.getElementById('gameContainer').appendChild(this.renderer.domElement);
+            }
+
+            setupLighting() {
+                const ambientLight = new THREE.AmbientLight(0xffa500, 0.3);
+                this.scene.add(ambientLight);
+
+                const directionalLight = new THREE.DirectionalLight(0xffa500, 0.8);
+                directionalLight.position.set(-50, 50, 50);
+                directionalLight.castShadow = true;
+                this.scene.add(directionalLight);
+
+                const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
+                const skyMaterial = new THREE.MeshBasicMaterial({
+                    color: 0xff6b35,
+                    side: THREE.BackSide
+                });
+                const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+                this.scene.add(sky);
+            }
+
+            setupScene() {
+                // 草地地面
+                const groundGeometry = new THREE.PlaneGeometry(200, 200);
+                const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x4a7c59 }); // 草绿色
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.receiveShadow = true;
+                this.scene.add(ground);
+
+                // 草地纹理效果
+                for (let i = 0; i < 100; i++) {
+                    const grassGeometry = new THREE.ConeGeometry(0.1, 0.3, 4);
+                    const grassMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+                    const grass = new THREE.Mesh(grassGeometry, grassMaterial);
+                    grass.position.set(
+                        (Math.random() - 0.5) * 150,
+                        0.15,
+                        (Math.random() - 0.5) * 150
+                    );
+                    grass.rotation.y = Math.random() * Math.PI * 2;
+                    this.scene.add(grass);
+                }
+
+                // 湖泊
+                const lakeGeometry = new THREE.CircleGeometry(15, 32);
+                const lakeMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x4169E1,
+                    transparent: true,
+                    opacity: 0.8,
+                    shininess: 100
+                });
+                const lake = new THREE.Mesh(lakeGeometry, lakeMaterial);
+                lake.rotation.x = -Math.PI / 2;
+                lake.position.set(20, 0.01, -10);
+                this.scene.add(lake);
+
+                // 湖边石头
+                for (let i = 0; i < 8; i++) {
+                    const stoneGeometry = new THREE.SphereGeometry(0.5 + Math.random() * 0.5, 8, 6);
+                    const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0x696969 });
+                    const stone = new THREE.Mesh(stoneGeometry, stoneMaterial);
+                    const angle = (i / 8) * Math.PI * 2;
+                    stone.position.set(
+                        20 + Math.cos(angle) * 16,
+                        0.2,
+                        -10 + Math.sin(angle) * 16
+                    );
+                    stone.castShadow = true;
+                    this.scene.add(stone);
+                }
+
+                // 远山
+                for (let i = 0; i < 5; i++) {
+                    const mountainGeometry = new THREE.ConeGeometry(8 + i * 2, 15 + i * 3, 8);
+                    const mountainMaterial = new THREE.MeshLambertMaterial({ 
+                        color: new THREE.Color().setHSL(0.3, 0.3, 0.4 - i * 0.05)
+                    });
+                    const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
+                    mountain.position.set(
+                        (Math.random() - 0.5) * 100 - 60,
+                        (15 + i * 3) / 2,
+                        -80 - i * 10
+                    );
+                    mountain.castShadow = true;
+                    this.scene.add(mountain);
+                }
+
+                // 远处的房屋
+                for (let i = 0; i < 6; i++) {
+                    // 房屋主体
+                    const houseGeometry = new THREE.BoxGeometry(3, 4, 3);
+                    const houseMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                    const house = new THREE.Mesh(houseGeometry, houseMaterial);
+                    house.position.set(
+                        (Math.random() - 0.5) * 80 - 40,
+                        2,
+                        -50 - Math.random() * 20
+                    );
+                    house.castShadow = true;
+                    this.scene.add(house);
+
+                    // 屋顶
+                    const roofGeometry = new THREE.ConeGeometry(2.5, 2, 4);
+                    const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x8B0000 });
+                    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+                    roof.position.copy(house.position);
+                    roof.position.y += 3;
+                    roof.rotation.y = Math.PI / 4;
+                    roof.castShadow = true;
+                    this.scene.add(roof);
+
+                    // 烟囱
+                    const chimneyGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1, 8);
+                    const chimneyMaterial = new THREE.MeshLambertMaterial({ color: 0x696969 });
+                    const chimney = new THREE.Mesh(chimneyGeometry, chimneyMaterial);
+                    chimney.position.copy(house.position);
+                    chimney.position.y += 4.5;
+                    chimney.position.x += 1;
+                    this.scene.add(chimney);
+                }
+
+                // 树木
+                for (let i = 0; i < 12; i++) {
+                    // 树干
+                    const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
+                    const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+                    trunk.position.set(
+                        (Math.random() - 0.5) * 120,
+                        1.5,
+                        (Math.random() - 0.5) * 120
+                    );
+                    trunk.castShadow = true;
+                    this.scene.add(trunk);
+
+                    // 树冠
+                    const crownGeometry = new THREE.SphereGeometry(2, 8, 6);
+                    const crownMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+                    const crown = new THREE.Mesh(crownGeometry, crownMaterial);
+                    crown.position.copy(trunk.position);
+                    crown.position.y += 3.5;
+                    crown.castShadow = true;
+                    this.scene.add(crown);
+                }
+
+                this.createBuildings();
+            }
+
+            createBuildings() {
+                const buildingGeometry = new THREE.BoxGeometry(5, 8, 5);
+                const buildingMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                
+                for (let i = 0; i < 3; i++) {
+                    const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+                    building.position.set(
+                        (Math.random() - 0.5) * 80,
+                        4,
+                        (Math.random() - 0.5) * 80
+                    );
+                    building.castShadow = true;
+                    this.scene.add(building);
+                }
+            }
+
+            setupPlayer() {
+                // 创建武士角色组
+                this.player = new THREE.Group();
+                this.player.position.set(0, 0, 0);
+                
+                // 创建坐骑
+                this.playerHorse = this.createHorse(this.currentMount, true);
+                this.playerHorse.position.y = 0;
+                this.scene.add(this.playerHorse);
+                
+                // 将玩家添加到马上
+                this.playerHorse.add(this.player);
+                this.player.position.set(0, 1.1, -0.2); // 降低高度，贴合马背
+
+                // 身体
+                const bodyScale = this.getBodyScale();
+                const bodyGeometry = new THREE.CylinderGeometry(0.4 * bodyScale.width, 0.5 * bodyScale.width, 1.2 * bodyScale.height, 8);
+                const bodyMaterial = new THREE.MeshLambertMaterial({ color: this.customization.clothingColor });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                body.position.y = 1.2;
+                body.castShadow = true;
+                this.player.add(body);
+
+                // 头部
+                const faceScale = this.getFaceScale();
+                const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
+                headGeometry.scale(faceScale.width, faceScale.height, faceScale.depth);
+                const headMaterial = new THREE.MeshLambertMaterial({ color: this.customization.skinColor });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                head.position.y = 2.1;
+                head.castShadow = true;
+                this.player.add(head);
+                this.playerHead = head;
+
+                // 头发/头盔
+                this.createHair();
+
+                // 左臂
+                const armGeometry = new THREE.CylinderGeometry(0.12, 0.15, 0.8, 8);
+                const armMaterial = new THREE.MeshLambertMaterial({ color: 0x2c3e50 });
+                const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+                leftArm.position.set(-0.6, 1.2, 0);
+                leftArm.rotation.z = 0.3;
+                leftArm.castShadow = true;
+                this.player.add(leftArm);
+
+                // 右臂（持剑）- 创建为组以便独立旋转
+                this.playerRightArm = new THREE.Group();
+                this.playerRightArm.position.set(0.6, 1.2, 0);
+                this.player.add(this.playerRightArm);
+                
+                const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+                rightArm.rotation.z = -0.3;
+                rightArm.castShadow = true;
+                this.playerRightArm.add(rightArm);
+
+                // 左腿 - 创建为组以便独立旋转
+                const legGeometry = new THREE.CylinderGeometry(0.12, 0.15, 0.9, 8);
+                const legMaterial = new THREE.MeshLambertMaterial({ color: 0x2c3e50 });
+                
+                this.playerLeftLeg = new THREE.Group();
+                this.playerLeftLeg.position.set(-0.2, 0.45, 0);
+                this.player.add(this.playerLeftLeg);
+                
+                const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                leftLeg.castShadow = true;
+                this.playerLeftLeg.add(leftLeg);
+
+                // 右腿 - 创建为组以便独立旋转
+                this.playerRightLeg = new THREE.Group();
+                this.playerRightLeg.position.set(0.2, 0.45, 0);
+                this.player.add(this.playerRightLeg);
+                
+                const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                rightLeg.castShadow = true;
+                this.playerRightLeg.add(rightLeg);
+
+                // 骑马时调整腿部姿势
+                if (this.playerMounted) {
+                    this.playerLeftLeg.rotation.x = Math.PI / 3;   // 左腿向前垂下
+                    this.playerLeftLeg.rotation.z = Math.PI / 8;   // 左腿稍微向外
+                    this.playerRightLeg.rotation.x = Math.PI / 3;  // 右腿向前垂下
+                    this.playerRightLeg.rotation.z = -Math.PI / 8; // 右腿稍微向外
+                }
+
+                // 武器组 - 附加到右臂
+                this.playerSword = new THREE.Group();
+                this.playerSword.position.set(0.2, 0.3, 0);
+                this.playerRightArm.add(this.playerSword);
+
+                // 创建初始武器
+                this.createWeapon(this.currentWeapon, this.playerSword);
+
+                // 腰带
+                const beltGeometry = new THREE.CylinderGeometry(0.52, 0.52, 0.1, 16);
+                const beltMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                const belt = new THREE.Mesh(beltGeometry, beltMaterial);
+                belt.position.y = 0.8;
+                this.player.add(belt);
+
+                // 翅膀组
+                this.playerWings = new THREE.Group();
+                this.playerWings.position.set(0, 1.5, -0.3);
+                this.player.add(this.playerWings);
+
+                // 左翅膀
+                const leftWingGeometry = new THREE.ConeGeometry(0.8, 1.5, 8);
+                const wingMaterial = new THREE.MeshLambertMaterial({ 
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const leftWing = new THREE.Mesh(leftWingGeometry, wingMaterial);
+                leftWing.position.set(-0.4, 0, 0);
+                leftWing.rotation.z = Math.PI / 4;
+                leftWing.rotation.x = -Math.PI / 6;
+                leftWing.castShadow = true;
+                this.playerWings.add(leftWing);
+
+                // 右翅膀
+                const rightWing = new THREE.Mesh(leftWingGeometry, wingMaterial);
+                rightWing.position.set(0.4, 0, 0);
+                rightWing.rotation.z = -Math.PI / 4;
+                rightWing.rotation.x = -Math.PI / 6;
+                rightWing.castShadow = true;
+                this.playerWings.add(rightWing);
+
+                // 翅膀羽毛细节
+                for (let i = 0; i < 6; i++) {
+                    const featherGeometry = new THREE.ConeGeometry(0.1, 0.4, 6);
+                    const featherMaterial = new THREE.MeshLambertMaterial({ 
+                        color: 0xe8e8e8,
+                        transparent: true,
+                        opacity: 0.9
+                    });
+                    
+                    // 左翅膀羽毛
+                    const leftFeather = new THREE.Mesh(featherGeometry, featherMaterial);
+                    leftFeather.position.set(-0.6 - i * 0.1, -0.2 - i * 0.1, i * 0.05);
+                    leftFeather.rotation.z = Math.PI / 3 + i * 0.1;
+                    leftFeather.rotation.x = -Math.PI / 8;
+                    this.playerWings.add(leftFeather);
+                    
+                    // 右翅膀羽毛
+                    const rightFeather = new THREE.Mesh(featherGeometry, featherMaterial);
+                    rightFeather.position.set(0.6 + i * 0.1, -0.2 - i * 0.1, i * 0.05);
+                    rightFeather.rotation.z = -Math.PI / 3 - i * 0.1;
+                    rightFeather.rotation.x = -Math.PI / 8;
+                    this.playerWings.add(rightFeather);
+                }
+            }
+
+            createWeapon(weaponType, weaponGroup) {
+                // 清除现有武器
+                while(weaponGroup.children.length > 0) {
+                    weaponGroup.remove(weaponGroup.children[0]);
+                }
+
+                switch(weaponType) {
+                    case 'katana':
+                        this.createKatana(weaponGroup);
+                        break;
+                    case 'sword':
+                        this.createSword(weaponGroup);
+                        break;
+                    case 'greatsword':
+                        this.createGreatsword(weaponGroup);
+                        break;
+                    case 'odachi':
+                        this.createOdachi(weaponGroup);
+                        break;
+                    case 'spear':
+                        this.createSpear(weaponGroup);
+                        break;
+                    case 'bow':
+                        this.createBow(weaponGroup);
+                        break;
+                }
+            }
+
+            createKatana(weaponGroup) {
+                const handleGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8);
+                const handleMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+                weaponGroup.add(handle);
+
+                const bladeGeometry = new THREE.BoxGeometry(0.05, 1.2, 0.02);
+                const bladeMaterial = new THREE.MeshPhongMaterial({ color: 0xC0C0C0, shininess: 100 });
+                const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+                blade.position.y = 0.7;
+                blade.castShadow = true;
+                weaponGroup.add(blade);
+
+                const guardGeometry = new THREE.BoxGeometry(0.2, 0.05, 0.05);
+                const guard = new THREE.Mesh(guardGeometry, new THREE.MeshLambertMaterial({ color: 0x34495e }));
+                guard.position.y = 0.15;
+                weaponGroup.add(guard);
+            }
+
+            createSword(weaponGroup) {
+                const handleGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.25, 8);
+                const handle = new THREE.Mesh(handleGeometry, new THREE.MeshLambertMaterial({ color: 0x654321 }));
+                weaponGroup.add(handle);
+
+                const bladeGeometry = new THREE.BoxGeometry(0.06, 1.0, 0.03);
+                const blade = new THREE.Mesh(bladeGeometry, new THREE.MeshPhongMaterial({ color: 0xE6E6FA, shininess: 80 }));
+                blade.position.y = 0.6;
+                blade.castShadow = true;
+                weaponGroup.add(blade);
+
+                const guardGeometry = new THREE.BoxGeometry(0.25, 0.06, 0.06);
+                const guard = new THREE.Mesh(guardGeometry, new THREE.MeshLambertMaterial({ color: 0x4A4A4A }));
+                guard.position.y = 0.12;
+                weaponGroup.add(guard);
+            }
+
+            createGreatsword(weaponGroup) {
+                const handleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8);
+                const handle = new THREE.Mesh(handleGeometry, new THREE.MeshLambertMaterial({ color: 0x2F4F4F }));
+                weaponGroup.add(handle);
+
+                const bladeGeometry = new THREE.BoxGeometry(0.08, 1.8, 0.04);
+                const blade = new THREE.Mesh(bladeGeometry, new THREE.MeshPhongMaterial({ color: 0xB0C4DE, shininess: 90 }));
+                blade.position.y = 1.1;
+                blade.castShadow = true;
+                weaponGroup.add(blade);
+
+                const guardGeometry = new THREE.BoxGeometry(0.35, 0.08, 0.08);
+                const guard = new THREE.Mesh(guardGeometry, new THREE.MeshLambertMaterial({ color: 0x696969 }));
+                guard.position.y = 0.25;
+                weaponGroup.add(guard);
+            }
+
+            createOdachi(weaponGroup) {
+                const handleGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.4, 8);
+                const handle = new THREE.Mesh(handleGeometry, new THREE.MeshLambertMaterial({ color: 0x8B0000 }));
+                weaponGroup.add(handle);
+
+                const bladeGeometry = new THREE.BoxGeometry(0.06, 1.6, 0.025);
+                const blade = new THREE.Mesh(bladeGeometry, new THREE.MeshPhongMaterial({ color: 0xFFFFFF, shininess: 120 }));
+                blade.position.y = 1.0;
+                blade.castShadow = true;
+                weaponGroup.add(blade);
+
+                const guardGeometry = new THREE.BoxGeometry(0.22, 0.05, 0.05);
+                const guard = new THREE.Mesh(guardGeometry, new THREE.MeshLambertMaterial({ color: 0x8B0000 }));
+                guard.position.y = 0.2;
+                weaponGroup.add(guard);
+            }
+
+            createSpear(weaponGroup) {
+                const shaftGeometry = new THREE.CylinderGeometry(0.02, 0.02, 1.8, 8);
+                const shaft = new THREE.Mesh(shaftGeometry, new THREE.MeshLambertMaterial({ color: 0x8B4513 }));
+                shaft.position.y = 0.9;
+                weaponGroup.add(shaft);
+
+                const spearheadGeometry = new THREE.ConeGeometry(0.04, 0.3, 8);
+                const spearhead = new THREE.Mesh(spearheadGeometry, new THREE.MeshPhongMaterial({ color: 0xC0C0C0, shininess: 100 }));
+                spearhead.position.y = 1.95;
+                spearhead.castShadow = true;
+                weaponGroup.add(spearhead);
+            }
+
+            createBow(weaponGroup) {
+                // 弓身
+                const bowGeometry = new THREE.TorusGeometry(0.6, 0.02, 8, 16, Math.PI);
+                const bowMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                const bow = new THREE.Mesh(bowGeometry, bowMaterial);
+                bow.rotation.z = Math.PI / 2;
+                bow.position.y = 0.8;
+                weaponGroup.add(bow);
+
+                // 弓弦
+                const stringGeometry = new THREE.CylinderGeometry(0.005, 0.005, 1.2, 4);
+                const stringMaterial = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+                const bowString = new THREE.Mesh(stringGeometry, stringMaterial);
+                bowString.position.set(0.6, 0.8, 0);
+                weaponGroup.add(bowString);
+            }
+
+            createEnemyWeapon(weaponType, weaponGroup) {
+                // 清除现有武器
+                while(weaponGroup.children.length > 0) {
+                    weaponGroup.remove(weaponGroup.children[0]);
+                }
+
+                // 敌人武器使用红色主题
+                const enemyColors = {
+                    handle: 0x4A4A4A,
+                    blade: 0x800000,
+                    guard: 0x4A4A4A
+                };
+
+                switch(weaponType) {
+                    case 'katana':
+                        this.createEnemyKatana(weaponGroup, enemyColors);
+                        break;
+                    case 'odachi':
+                        this.createEnemyOdachi(weaponGroup, enemyColors);
+                        break;
+                    default:
+                        this.createEnemyOdachi(weaponGroup, enemyColors);
+                }
+            }
+
+            createEnemyKatana(weaponGroup, colors) {
+                const handleGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.4, 8);
+                const handle = new THREE.Mesh(handleGeometry, new THREE.MeshLambertMaterial({ color: colors.handle }));
+                weaponGroup.add(handle);
+
+                const bladeGeometry = new THREE.BoxGeometry(0.06, 1.4, 0.02);
+                const blade = new THREE.Mesh(bladeGeometry, new THREE.MeshPhongMaterial({ color: colors.blade, shininess: 80 }));
+                blade.position.y = 0.7;
+                blade.castShadow = true;
+                weaponGroup.add(blade);
+
+                const guardGeometry = new THREE.BoxGeometry(0.25, 0.06, 0.06);
+                const guard = new THREE.Mesh(guardGeometry, new THREE.MeshLambertMaterial({ color: colors.guard }));
+                guard.position.y = 0.15;
+                weaponGroup.add(guard);
+            }
+
+            createEnemyOdachi(weaponGroup, colors) {
+                const handleGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
+                const handle = new THREE.Mesh(handleGeometry, new THREE.MeshLambertMaterial({ color: colors.handle }));
+                weaponGroup.add(handle);
+
+                const bladeGeometry = new THREE.BoxGeometry(0.07, 1.8, 0.025);
+                const blade = new THREE.Mesh(bladeGeometry, new THREE.MeshPhongMaterial({ color: colors.blade, shininess: 90 }));
+                blade.position.y = 1.1;
+                blade.castShadow = true;
+                weaponGroup.add(blade);
+
+                const guardGeometry = new THREE.BoxGeometry(0.28, 0.07, 0.07);
+                const guard = new THREE.Mesh(guardGeometry, new THREE.MeshLambertMaterial({ color: colors.guard }));
+                guard.position.y = 0.25;
+                weaponGroup.add(guard);
+            }
+
+            createHorse(mountType, isPlayer = true) {
+                const horse = new THREE.Group();
+                const colors = this.getHorseColors(mountType);
+                
+                // 马身
+                const bodyGeometry = new THREE.BoxGeometry(0.8, 0.6, 1.8);
+                const body = new THREE.Mesh(bodyGeometry, new THREE.MeshLambertMaterial({ color: colors.body }));
+                body.position.y = 0.8;
+                body.castShadow = true;
+                horse.add(body);
+
+                // 马头
+                const headGeometry = new THREE.BoxGeometry(0.4, 0.5, 0.6);
+                const head = new THREE.Mesh(headGeometry, new THREE.MeshLambertMaterial({ color: colors.body }));
+                head.position.set(0, 1.2, 1.2);
+                head.castShadow = true;
+                horse.add(head);
+
+                // 马腿 - 创建为组以便独立旋转
+                const legGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.8, 8);
+                const legMaterial = new THREE.MeshLambertMaterial({ color: colors.legs });
+                
+                const legPositions = [
+                    { pos: [-0.3, 0.4, 0.6], name: 'frontLeft' },
+                    { pos: [0.3, 0.4, 0.6], name: 'frontRight' },
+                    { pos: [-0.3, 0.4, -0.6], name: 'backLeft' },
+                    { pos: [0.3, 0.4, -0.6], name: 'backRight' }
+                ];
+                
+                horse.legs = {};
+                legPositions.forEach(({ pos, name }) => {
+                    const legGroup = new THREE.Group();
+                    legGroup.position.set(...pos);
+                    
+                    const leg = new THREE.Mesh(legGeometry, legMaterial);
+                    leg.castShadow = true;
+                    legGroup.add(leg);
+                    
+                    horse.add(legGroup);
+                    horse.legs[name] = legGroup;
+                });
+
+                // 马鬃
+                const maneGeometry = new THREE.BoxGeometry(0.1, 0.3, 0.8);
+                const mane = new THREE.Mesh(maneGeometry, new THREE.MeshLambertMaterial({ color: colors.mane }));
+                mane.position.set(0, 1.4, 0.4);
+                horse.add(mane);
+
+                // 马尾
+                const tailGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.6);
+                const tail = new THREE.Mesh(tailGeometry, new THREE.MeshLambertMaterial({ color: colors.mane }));
+                tail.position.set(0, 1.0, -1.2);
+                horse.add(tail);
+
+                return horse;
+            }
+
+            getHorseColors(mountType) {
+                const colors = {
+                    chitu: { body: 0x8B0000, legs: 0x654321, mane: 0x2F1B14 },
+                    dilu: { body: 0xFFFFFF, legs: 0xD3D3D3, mane: 0x696969 },
+                    jueying: { body: 0x000000, legs: 0x2F2F2F, mane: 0x000000 },
+                    zhuahuang: { body: 0xFFD700, legs: 0xDAA520, mane: 0xB8860B },
+                    zhaoyeyushi: { body: 0xF5F5DC, legs: 0xDEB887, mane: 0xD2B48C },
+                    wuyuntaxue: { body: 0x2F2F2F, legs: 0x000000, mane: 0xFFFFFF },
+                    zishen: { body: 0x800080, legs: 0x4B0082, mane: 0x8B008B },
+                    jingfan: { body: 0x8B4513, legs: 0x654321, mane: 0x2F1B14 },
+                    lifeisha: { body: 0xF4A460, legs: 0xD2691E, mane: 0x8B4513 }
+                };
+                return colors[mountType] || colors.chitu;
+            }
+
+            setupEnemy() {
+                // 创建敌人武士角色组
+                this.enemy = new THREE.Group();
+                this.enemy.position.set(5, 0, 0);
+                
+                // 创建敌人坐骑
+                this.enemyHorse = this.createHorse('jueying', false);
+                this.enemyHorse.position.set(5, 0, 0);
+                this.scene.add(this.enemyHorse);
+                
+                // 将敌人添加到马上
+                this.enemyHorse.add(this.enemy);
+                this.enemy.position.set(0, 1.1, -0.2); // 降低高度，贴合马背
+
+                // 身体
+                const bodyGeometry = new THREE.CylinderGeometry(0.4, 0.5, 1.2, 8);
+                const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0x8B0000 }); // 深红色盔甲
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                body.position.y = 1.2;
+                body.castShadow = true;
+                this.enemy.add(body);
+
+                // 头部
+                const headGeometry = new THREE.SphereGeometry(0.25, 16, 16);
+                const headMaterial = new THREE.MeshLambertMaterial({ color: 0xfdbcb4 });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                head.position.y = 2.1;
+                head.castShadow = true;
+                this.enemy.add(head);
+
+                // 面具
+                const maskGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.05);
+                const maskMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+                const mask = new THREE.Mesh(maskGeometry, maskMaterial);
+                mask.position.set(0, 2.05, 0.25);
+                mask.castShadow = true;
+                this.enemy.add(mask);
+
+                // 左臂
+                const armGeometry = new THREE.CylinderGeometry(0.12, 0.15, 0.8, 8);
+                const armMaterial = new THREE.MeshLambertMaterial({ color: 0x8B0000 });
+                const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+                leftArm.position.set(-0.6, 1.2, 0);
+                leftArm.rotation.z = 0.3;
+                leftArm.castShadow = true;
+                this.enemy.add(leftArm);
+
+                // 右臂（持剑）- 创建为组以便独立旋转
+                this.enemyRightArm = new THREE.Group();
+                this.enemyRightArm.position.set(0.6, 1.2, 0);
+                this.enemy.add(this.enemyRightArm);
+                
+                const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+                rightArm.rotation.z = -0.3;
+                rightArm.castShadow = true;
+                this.enemyRightArm.add(rightArm);
+
+                // 腿部
+                const legGeometry = new THREE.CylinderGeometry(0.12, 0.15, 0.9, 8);
+                const legMaterial = new THREE.MeshLambertMaterial({ color: 0x8B0000 });
+                
+                this.enemyLeftLeg = new THREE.Group();
+                this.enemyLeftLeg.position.set(-0.2, 0.45, 0);
+                this.enemy.add(this.enemyLeftLeg);
+                const enemyLeftLeg = new THREE.Mesh(legGeometry, legMaterial);
+                enemyLeftLeg.castShadow = true;
+                this.enemyLeftLeg.add(enemyLeftLeg);
+
+                this.enemyRightLeg = new THREE.Group();
+                this.enemyRightLeg.position.set(0.2, 0.45, 0);
+                this.enemy.add(this.enemyRightLeg);
+                const enemyRightLeg = new THREE.Mesh(legGeometry, legMaterial);
+                enemyRightLeg.castShadow = true;
+                this.enemyRightLeg.add(enemyRightLeg);
+
+                // 敌人骑马时调整腿部姿势
+                if (this.enemyMounted) {
+                    this.enemyLeftLeg.rotation.x = Math.PI / 3;
+                    this.enemyLeftLeg.rotation.z = Math.PI / 8;
+                    this.enemyRightLeg.rotation.x = Math.PI / 3;
+                    this.enemyRightLeg.rotation.z = -Math.PI / 8;
+                }
+
+                // 敌人武器组
+                this.enemySword = new THREE.Group();
+                this.enemySword.position.set(0.2, 0.3, 0);
+                this.enemyRightArm.add(this.enemySword);
+
+                // 创建敌人武器（默认使用大太刀）
+                this.createEnemyWeapon('odachi', this.enemySword);
+
+                // 腰带
+                const beltGeometry = new THREE.CylinderGeometry(0.52, 0.52, 0.1, 16);
+                const beltMaterial = new THREE.MeshLambertMaterial({ color: 0x4A4A4A });
+                const belt = new THREE.Mesh(beltGeometry, beltMaterial);
+                belt.position.y = 0.8;
+                this.enemy.add(belt);
+            }
+
+            setupCamera() {
+                this.camera.position.set(0, 8, 12);
+                this.camera.lookAt(0, 2, 0);
+            }
+
+            setupControls() {
+                document.addEventListener('keydown', (e) => {
+                    this.keys[e.code] = true;
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                });
+
+                // 武器选择器事件
+                document.querySelectorAll('.weapon-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const weaponType = e.target.dataset.weapon;
+                        this.switchWeapon(weaponType);
+                        
+                        // 更新按钮状态
+                        document.querySelectorAll('.weapon-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                    });
+                });
+
+                // 坐骑选择器事件
+                document.querySelectorAll('.mount-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const mountType = e.target.dataset.mount;
+                        this.switchMount(mountType);
+                        
+                        // 更新按钮状态
+                        document.querySelectorAll('.mount-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                    });
+                });
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+            }
+
+            switchWeapon(weaponType) {
+                this.currentWeapon = weaponType;
+                this.createWeapon(weaponType, this.playerSword);
+            }
+
+            switchMount(mountType) {
+                this.currentMount = mountType;
+                
+                // 保存当前位置
+                const currentPos = this.playerMounted ? this.playerHorse.position.clone() : this.player.position.clone();
+                const enemyCurrentPos = this.enemyMounted ? this.enemyHorse.position.clone() : this.enemy.position.clone();
+                
+                if (mountType === 'none') {
+                    // 玩家下马 - 恢复腿部正常姿势
+                    this.playerMounted = false;
+                    this.playerLeftLeg.rotation.x = 0;
+                    this.playerLeftLeg.rotation.z = 0;
+                    this.playerRightLeg.rotation.x = 0;
+                    this.playerRightLeg.rotation.z = 0;
+                    this.scene.remove(this.playerHorse);
+                    this.scene.add(this.player);
+                    this.player.position.copy(currentPos);
+                    
+                    // 敌人也下马
+                    this.enemyMounted = false;
+                    this.enemyLeftLeg.rotation.x = 0;
+                    this.enemyLeftLeg.rotation.z = 0;
+                    this.enemyRightLeg.rotation.x = 0;
+                    this.enemyRightLeg.rotation.z = 0;
+                    this.scene.remove(this.enemyHorse);
+                    this.scene.add(this.enemy);
+                    this.enemy.position.copy(enemyCurrentPos);
+                } else {
+                    // 玩家上马或换马 - 调整腿部骑马姿势
+                    this.playerMounted = true;
+                    this.playerMountHealth = 200; // 重置玩家坐骑生命值
+                    this.playerLeftLeg.rotation.x = Math.PI / 3;
+                    this.playerLeftLeg.rotation.z = Math.PI / 8;
+                    this.playerRightLeg.rotation.x = Math.PI / 3;
+                    this.playerRightLeg.rotation.z = -Math.PI / 8;
+                    if (this.playerHorse) {
+                        this.scene.remove(this.playerHorse);
+                    }
+                    this.playerHorse = this.createHorse(mountType, true);
+                    this.playerHorse.position.copy(currentPos);
+                    this.scene.add(this.playerHorse);
+                    this.playerHorse.add(this.player);
+                    this.player.position.set(0, 1.1, -0.2);
+                    
+                    // 敌人也上马
+                    this.enemyMounted = true;
+                    this.enemyMountHealth = 200; // 重置敌人坐骑生命值
+                    this.enemyLeftLeg.rotation.x = Math.PI / 3;
+                    this.enemyLeftLeg.rotation.z = Math.PI / 8;
+                    this.enemyRightLeg.rotation.x = Math.PI / 3;
+                    this.enemyRightLeg.rotation.z = -Math.PI / 8;
+                    if (this.enemyHorse) {
+                        this.scene.remove(this.enemyHorse);
+                    }
+                    this.enemyHorse = this.createHorse('jueying', false);
+                    this.enemyHorse.position.copy(enemyCurrentPos);
+                    this.scene.add(this.enemyHorse);
+                    this.enemyHorse.add(this.enemy);
+                    this.enemy.position.set(0, 1.1, -0.2);
+                }
+            }
+
+            handleInput() {
+                const speed = this.playerMounted ? 0.15 : 0.1; // 骑马时移动更快
+                let moved = false;
+
+                // 计算相机角度（相机围绕玩家的角度）
+                const cameraAngle = this.mouse.x * Math.PI;
+                
+                // 根据WASD键计算相对于相机的移动方向
+                let moveX = 0;
+                let moveZ = 0;
+
+                if (this.keys['KeyW']) {
+                    moveZ -= 1; // 相机正北方向
+                }
+                if (this.keys['KeyS']) {
+                    moveZ += 1; // 相机正南方向
+                }
+                if (this.keys['KeyA']) {
+                    moveX -= 1; // 相机正西方向
+                }
+                if (this.keys['KeyD']) {
+                    moveX += 1; // 相机正东方向
+                }
+
+                // 如果有移动输入，根据相机角度旋转移动方向
+                if (moveX !== 0 || moveZ !== 0) {
+                    // 标准化移动向量
+                    const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
+                    moveX /= length;
+                    moveZ /= length;
+
+                    // 根据相机角度旋转移动方向
+                    const rotatedX = moveX * Math.cos(cameraAngle) - moveZ * Math.sin(cameraAngle);
+                    const rotatedZ = moveX * Math.sin(cameraAngle) + moveZ * Math.cos(cameraAngle);
+
+                    // 获取当前位置（根据是否骑马）
+                    const currentPos = this.playerMounted ? this.playerHorse.position : this.player.position;
+                    
+                    // 计算新位置
+                    const newX = currentPos.x + rotatedX * speed;
+                    const newZ = currentPos.z + rotatedZ * speed;
+                    
+                    // 限制在草地范围内 (-100 到 100)
+                    const boundedX = Math.max(-100, Math.min(100, newX));
+                    const boundedZ = Math.max(-100, Math.min(100, newZ));
+                    
+                    // 检查与敌人的碰撞
+                    const newPlayerPos = new THREE.Vector3(boundedX, currentPos.y, boundedZ);
+                    const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                    const distance = newPlayerPos.distanceTo(enemyPos);
+                    
+                    // 如果距离大于最小碰撞距离，允许移动
+                    if (distance > 2.0) { // 骑马时需要更大的碰撞距离
+                        if (this.playerMounted) {
+                            this.playerHorse.position.x = boundedX;
+                            this.playerHorse.position.z = boundedZ;
+                            this.playerHorse.rotation.y = Math.atan2(rotatedX, rotatedZ);
+                        } else {
+                            this.player.position.x = boundedX;
+                            this.player.position.z = boundedZ;
+                            this.player.rotation.y = Math.atan2(rotatedX, rotatedZ);
+                        }
+                        
+                        moved = true;
+                    }
+                }
+
+                if (this.keys['Space']) {
+                    this.performAttack(25);
+                }
+
+                if (this.keys['ShiftLeft']) {
+                    this.performBlock();
+                }
+
+                // 技能按键
+                if (this.keys['KeyQ']) {
+                    this.useSkill('whirlwind');
+                    this.performAttack(50);
+                }
+                if (this.keys['KeyE']) {
+                    this.useSkill('thunder');
+                    this.performAttack(80);
+                }
+                if (this.keys['KeyZ']) {
+                    this.useSkill('tianshan');
+                    this.performAttack(120);
+                }
+
+                this.playerState = moved ? 'moving' : (this.playerState === 'attacking' || this.playerState === 'blocking' ? this.playerState : 'idle');
+
+                // 相机跟随玩家
+                const targetPos = this.playerMounted ? this.playerHorse.position : this.player.position;
+                this.camera.position.x = targetPos.x + Math.sin(cameraAngle) * 12;
+                this.camera.position.z = targetPos.z + Math.cos(cameraAngle) * 12;
+                this.camera.lookAt(targetPos.x, targetPos.y + 2, targetPos.z);
+            }
+
+            spawnLivestock() {
+                const mountTypes = ['chitu', 'dilu', 'jueying', 'zhuahuang', 'zhaoyeyushi'];
+                
+                for (let i = 0; i < 5; i++) {
+                    const mountType = mountTypes[Math.floor(Math.random() * mountTypes.length)];
+                    const livestock = this.createHorse(mountType, true);
+                    
+                    // 随机位置
+                    livestock.position.set(
+                        (Math.random() - 0.5) * 180,
+                        0,
+                        (Math.random() - 0.5) * 180
+                    );
+                    
+                    livestock.userData = { mountType: mountType, captured: false };
+                    this.scene.add(livestock);
+                    this.livestock.push(livestock);
+                }
+            }
+
+            checkLivestockInteraction() {
+                const playerPos = this.playerMounted ? this.playerHorse.position : this.player.position;
+                
+                this.livestock.forEach((animal, index) => {
+                    if (animal.userData.captured) return;
+                    
+                    const distance = playerPos.distanceTo(animal.position);
+                    if (distance < 3) {
+                        const mountName = this.getMountName(animal.userData.mountType);
+                        if (confirm(`发现${mountName}！是否将其作为坐骑？`)) {
+                            this.currentMount = animal.userData.mountType;
+                            animal.userData.captured = true;
+                            this.scene.remove(animal);
+                            this.livestock.splice(index, 1);
+                            
+                            // 如果当前在步行，自动上马；如果已骑马，则换马
+                            if (!this.playerMounted) {
+                                this.switchMount(animal.userData.mountType);
+                            } else {
+                                // 换马：保持骑马状态，只更换坐骑
+                                const currentPos = this.playerHorse.position.clone();
+                                this.scene.remove(this.playerHorse);
+                                this.playerHorse = this.createHorse(animal.userData.mountType, true);
+                                this.playerHorse.position.copy(currentPos);
+                                this.scene.add(this.playerHorse);
+                                this.playerHorse.add(this.player);
+                                this.player.position.set(0, 1.1, -0.2);
+                                this.playerMountHealth = 200; // 重置坐骑生命值
+                            }
+                        }
+                    }
+                });
+            }
+
+            getMountName(mountType) {
+                const names = {
+                    chitu: '赤兔马',
+                    dilu: '的卢马',
+                    jueying: '绝影马',
+                    zhuahuang: '爪黄飞电',
+                    zhaoyeyushi: '照夜玉狮子'
+                };
+                return names[mountType] || '野马';
+            }
+
+            playSound(frequency, duration, type = 'sine') {
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                oscillator.type = type;
+                
+                gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+                
+                oscillator.start(this.audioContext.currentTime);
+                oscillator.stop(this.audioContext.currentTime + duration);
+            }
+
+            performAttack(hit) {
+                if (this.playerState !== 'attacking') {
+                    this.playerState = 'attacking';
+                    
+                    if (this.currentWeapon === 'bow') {
+                        this.playSound(800, 0.2, 'triangle'); // 弓弦音效
+                        this.shootArrow();
+                    } else {
+                        this.playSound(600, 0.3, 'sawtooth'); // 挥剑音效
+                        // 武士刀挥砍动画
+                        const originalRotation = this.playerRightArm.rotation.z;
+                        const originalSwordRotation = this.playerSword.rotation.x;
+                        
+                        // 举剑准备
+                        this.playerRightArm.rotation.z = -Math.PI / 3;
+                        this.playerSword.rotation.x = -Math.PI / 4;
+                        
+                        // 延迟后挥砍
+                        setTimeout(() => {
+                            this.playerRightArm.rotation.z = Math.PI / 6;
+                            this.playerSword.rotation.x = Math.PI / 3;
+                            
+                            // 检测攻击范围
+                            const playerPos = this.playerMounted ? this.playerHorse.position : this.player.position;
+                            const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                            const distance = playerPos.distanceTo(enemyPos);
+                            const attackRange = this.playerMounted ? 5 : 4; // 骑马时攻击范围更大
+                            if (distance < attackRange) {
+                                this.playSound(400, 0.4, 'square'); // 击中音效
+                                this.dealDamage(hit);
+                            }
+                            
+                            // 恢复原始姿势
+                            setTimeout(() => {
+                                this.playerRightArm.rotation.z = originalRotation;
+                                this.playerSword.rotation.x = originalSwordRotation;
+                                
+                                if (this.playerState === 'attacking') {
+                                    this.playerState = 'idle';
+                                }
+                            }, 200);
+                        }, 150);
+                    }
+                }
+            }
+
+            shootArrow() {
+                // 拉弓动画
+                this.playerRightArm.rotation.z = -Math.PI / 4;
+                this.playerSword.rotation.x = -Math.PI / 6;
+                
+                setTimeout(() => {
+                    // 创建箭矢
+                    const arrow = this.createArrow();
+                    
+                    // 获取玩家位置
+                    const playerPos = this.playerMounted ? this.playerHorse.position : this.player.position;
+                    arrow.position.copy(playerPos);
+                    arrow.position.y += 2; // 箭矢从胸部高度射出
+                    
+                    // 自动瞄准敌人
+                    const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                    const direction = new THREE.Vector3();
+                    direction.subVectors(enemyPos, arrow.position);
+                    direction.normalize();
+                    
+                    // 设置箭矢属性
+                    arrow.userData = {
+                        velocity: direction.multiplyScalar(0.5), // 箭矢速度
+                        lifeTime: 0, // 生命周期
+                        maxLifeTime: 5000 // 最大生命周期5秒
+                    };
+                    
+                    // 箭矢朝向目标
+                    arrow.lookAt(enemyPos);
+                    
+                    this.scene.add(arrow);
+                    this.arrows.push(arrow);
+                    
+                    // 恢复拉弓姿势
+                    this.playerRightArm.rotation.z = 0;
+                    this.playerSword.rotation.x = 0;
+                    this.playerState = 'idle';
+                }, 300);
+            }
+
+            createArrow() {
+                const arrow = new THREE.Group();
+                
+                // 箭杆
+                const shaftGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.8, 8);
+                const shaftMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+                shaft.rotation.z = Math.PI / 2;
+                arrow.add(shaft);
+                
+                // 箭头
+                const headGeometry = new THREE.ConeGeometry(0.02, 0.1, 8);
+                const headMaterial = new THREE.MeshPhongMaterial({ color: 0xC0C0C0, shininess: 100 });
+                const head = new THREE.Mesh(headGeometry, headMaterial);
+                head.position.x = 0.45;
+                head.rotation.z = -Math.PI / 2;
+                arrow.add(head);
+                
+                // 箭羽
+                const featherGeometry = new THREE.PlaneGeometry(0.05, 0.1);
+                const featherMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide });
+                
+                for (let i = 0; i < 3; i++) {
+                    const feather = new THREE.Mesh(featherGeometry, featherMaterial);
+                    feather.position.x = -0.35;
+                    feather.rotation.y = (i * Math.PI * 2) / 3;
+                    arrow.add(feather);
+                }
+                
+                return arrow;
+            }
+
+            updateArrows() {
+                for (let i = this.arrows.length - 1; i >= 0; i--) {
+                    const arrow = this.arrows[i];
+                    const deltaTime = 16; // 假设60fps
+                    
+                    // 更新箭矢位置
+                    arrow.position.add(arrow.userData.velocity.clone().multiplyScalar(deltaTime));
+                    
+                    // 更新生命周期
+                    arrow.userData.lifeTime += deltaTime;
+                    
+                    // 检查与敌人碰撞
+                    const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                    const distance = arrow.position.distanceTo(enemyPos);
+                    
+                    if (distance < 1.0) {
+                        // 击中敌人
+                        this.dealDamage(30);
+                        this.scene.remove(arrow);
+                        this.arrows.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // 检查生命周期
+                    if (arrow.userData.lifeTime > arrow.userData.maxLifeTime) {
+                        this.scene.remove(arrow);
+                        this.arrows.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // 检查是否落地
+                    if (arrow.position.y < 0) {
+                        this.scene.remove(arrow);
+                        this.arrows.splice(i, 1);
+                    }
+                }
+            }
+
+            performBlock() {
+                if (this.playerState !== 'blocking') {
+                    this.playerState = 'blocking';
+                    
+                    // 保存原始姿势
+                    const originalArmRotationZ = this.playerRightArm.rotation.z;
+                    const originalArmRotationX = this.playerRightArm.rotation.x;
+                    const originalSwordRotationX = this.playerSword.rotation.x;
+                    const originalSwordRotationZ = this.playerSword.rotation.z;
+                    
+                    // 格挡姿势：右臂抬起，剑横在面前
+                    this.playerRightArm.rotation.z = -Math.PI / 2; // 右臂向上抬起
+                    this.playerRightArm.rotation.x = Math.PI / 6;  // 右臂向前倾斜
+                    this.playerSword.rotation.x = Math.PI / 2;     // 剑身横向
+                    this.playerSword.rotation.z = Math.PI / 2;     // 剑刃朝外
+                    
+                    // 持续格挡姿势
+                    setTimeout(() => {
+                        if (this.playerState === 'blocking') {
+                            // 恢复原始姿势
+                            this.playerRightArm.rotation.z = originalArmRotationZ;
+                            this.playerRightArm.rotation.x = originalArmRotationX;
+                            this.playerSword.rotation.x = originalSwordRotationX;
+                            this.playerSword.rotation.z = originalSwordRotationZ;
+                            this.playerState = 'idle';
+                        }
+                    }, 800);
+                }
+            }
+
+            useSkill(skillName) {
+                const skill = this.skills[skillName];
+                const now = Date.now();
+                
+                if (now - skill.lastUsed < skill.cooldown) {
+                    return; // 技能冷却中
+                }
+                
+                if (this.playerState !== 'idle') {
+                    return; // 玩家正在执行其他动作
+                }
+                
+                skill.lastUsed = now;
+                this.playerState = 'skill';
+                
+                switch(skillName) {
+                    case 'whirlwind':
+                        this.performWhirlwind();
+                        break;
+                    case 'thunder':
+                        this.performThunder();
+                        break;
+                    case 'tianshan':
+                        this.performTianshan();
+                        break;
+                }
+            }
+
+            performWhirlwind() {
+                // 旋风斩：360度旋转攻击
+                const originalRotation = this.player.rotation.y;
+                let rotations = 0;
+                
+                const spin = () => {
+                    if (rotations < Math.PI * 2) {
+                        this.player.rotation.y += 0.3;
+                        this.playerRightArm.rotation.z = Math.PI / 4;
+                        rotations += 0.3;
+                        requestAnimationFrame(spin);
+                    } else {
+                        this.player.rotation.y = originalRotation;
+                        this.playerRightArm.rotation.z = 0;
+                        this.playerState = 'idle';
+                    }
+                };
+                spin();
+            }
+
+            performThunder() {
+                // 雷霆击：向上跳跃重击
+                const originalY = this.player.position.y;
+                this.player.position.y += 2;
+                this.playerRightArm.rotation.z = -Math.PI / 2;
+                
+                setTimeout(() => {
+                    this.player.position.y = originalY;
+                    this.playerRightArm.rotation.z = Math.PI / 3;
+                    
+                    setTimeout(() => {
+                        this.playerRightArm.rotation.z = 0;
+                        this.playerState = 'idle';
+                    }, 300);
+                }, 500);
+            }
+
+            performTianshan() {
+                // 天山问客：优雅的刺击姿势
+                this.playerRightArm.rotation.z = -Math.PI / 6;
+                this.playerSword.rotation.x = -Math.PI / 3;
+                this.player.position.z -= 1;
+                
+                setTimeout(() => {
+                    this.player.position.z += 2;
+                    this.playerSword.rotation.x = 0;
+                    
+                    setTimeout(() => {
+                        this.player.position.z -= 1;
+                        this.playerRightArm.rotation.z = 0;
+                        this.playerState = 'idle';
+                    }, 300);
+                }, 200);
+            }
+
+            updateEnemyAI() {
+                const currentTime = Date.now();
+                const playerPos = this.playerMounted ? this.playerHorse.position : this.player.position;
+                const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                const distance = playerPos.distanceTo(enemyPos);
+                
+                // 检查是否在恢复期
+                if (currentTime < this.enemyRecoveryTime) {
+                    this.enemyState = 'recovering';
+                    return;
+                }
+                
+                // 根据血量调整防御模式
+                this.enemyDefensiveMode = this.enemyHealth < 60;
+                
+                // 敌人AI行为
+                if (this.enemyState === 'idle' || this.enemyState === 'moving' || this.enemyState === 'recovering') {
+                    if (distance > 4) {
+                        // 跟随玩家
+                        this.enemyState = 'moving';
+                        const direction = new THREE.Vector3();
+                        direction.subVectors(playerPos, enemyPos);
+                        direction.normalize();
+                        
+                        // 敌人移动速度（恢复期后稍慢）
+                        const baseSpeed = this.enemyMounted ? 0.08 : 0.05;
+                        const moveSpeed = this.enemyDefensiveMode ? baseSpeed * 0.8 : baseSpeed;
+                        
+                        // 计算新位置
+                        const newX = enemyPos.x + direction.x * moveSpeed;
+                        const newZ = enemyPos.z + direction.z * moveSpeed;
+                        
+                        // 限制敌人也在草地范围内
+                        const boundedX = Math.max(-100, Math.min(100, newX));
+                        const boundedZ = Math.max(-100, Math.min(100, newZ));
+                        
+                        // 检查与玩家的碰撞
+                        const newEnemyPos = new THREE.Vector3(boundedX, enemyPos.y, boundedZ);
+                        const newDistance = newEnemyPos.distanceTo(playerPos);
+                        
+                        // 如果距离大于最小碰撞距离，允许移动
+                        const minDistance = (this.playerMounted || this.enemyMounted) ? 2.5 : 1.5;
+                        if (newDistance > minDistance) {
+                            if (this.enemyMounted) {
+                                this.enemyHorse.position.x = boundedX;
+                                this.enemyHorse.position.z = boundedZ;
+                                this.enemyHorse.lookAt(playerPos.x, this.enemyHorse.position.y, playerPos.z);
+                            } else {
+                                this.enemy.position.x = boundedX;
+                                this.enemy.position.z = boundedZ;
+                                this.enemy.lookAt(playerPos.x, this.enemy.position.y, playerPos.z);
+                            }
+                        }
+                        
+                    } else if (distance <= 4 && currentTime - this.lastEnemyAction > (this.enemyDefensiveMode ? 800 : 1500)) {
+                        // 在攻击范围内，智能选择行为
+                        if (this.playerState === 'attacking') {
+                            // 玩家攻击时优先防御
+                            this.enemyBlock();
+                        } else {
+                            // 防御模式下更频繁防御，否则更多攻击
+                            const defenseChance = this.enemyDefensiveMode ? 0.6 : 0.3;
+                            if (Math.random() < defenseChance) {
+                                this.enemyBlock();
+                            } else {
+                                this.enemyAttack();
+                            }
+                        }
+                        this.lastEnemyAction = currentTime;
+                    } else {
+                        this.enemyState = 'idle';
+                    }
+                }
+            }
+
+            enemyAttack() {
+                if (this.enemyState !== 'attacking') {
+                    this.enemyState = 'attacking';
+                    
+                    // 敌人攻击动画
+                    const originalRotation = this.enemyRightArm.rotation.z;
+                    const originalSwordRotation = this.enemySword.rotation.x;
+                    
+                    this.enemyRightArm.rotation.z = -Math.PI / 3;
+                    this.enemySword.rotation.x = -Math.PI / 4;
+                    
+                    setTimeout(() => {
+                        this.enemyRightArm.rotation.z = Math.PI / 6;
+                        this.enemySword.rotation.x = Math.PI / 3;
+                        
+                        // 检测是否击中玩家
+                        const playerPos = this.playerMounted ? this.playerHorse.position : this.player.position;
+                        const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                        const distance = playerPos.distanceTo(enemyPos);
+                        const attackRange = this.enemyMounted ? 5 : 4;
+                        if (distance < attackRange && this.playerState !== 'blocking') {
+                            this.playSound(350, 0.5, 'square'); // 敌人击中音效
+                            this.playerTakeDamage();
+                        }
+                        
+                        setTimeout(() => {
+                            this.enemyRightArm.rotation.z = originalRotation;
+                            this.enemySword.rotation.x = originalSwordRotation;
+                            this.enemyState = 'idle';
+                        }, 200);
+                    }, 150);
+                }
+            }
+
+            enemyBlock() {
+                if (this.enemyState !== 'blocking') {
+                    this.enemyState = 'blocking';
+                    
+                    // 敌人格挡动画
+                    const originalArmRotationZ = this.enemyRightArm.rotation.z;
+                    const originalArmRotationX = this.enemyRightArm.rotation.x;
+                    const originalSwordRotationX = this.enemySword.rotation.x;
+                    const originalSwordRotationZ = this.enemySword.rotation.z;
+                    
+                    this.enemyRightArm.rotation.z = -Math.PI / 2;
+                    this.enemyRightArm.rotation.x = Math.PI / 6;
+                    this.enemySword.rotation.x = Math.PI / 2;
+                    this.enemySword.rotation.z = Math.PI / 2;
+                    
+                    setTimeout(() => {
+                        this.enemyRightArm.rotation.z = originalArmRotationZ;
+                        this.enemyRightArm.rotation.x = originalArmRotationX;
+                        this.enemySword.rotation.x = originalSwordRotationX;
+                        this.enemySword.rotation.z = originalSwordRotationZ;
+                        this.enemyState = 'idle';
+                    }, 800);
+                }
+            }
+
+            playerTakeDamage() {
+                if (this.playerMounted) {
+                    this.playerMountHealth -= 20;
+                    console.log('Player mount hit! Mount Health:', this.playerMountHealth);
+                    
+                    if (this.playerMountHealth <= 0) {
+                        // 坐骑被击毁，玩家下马
+                        const currentPos = this.playerHorse.position.clone();
+                        this.playerMounted = false;
+                        this.playerLeftLeg.rotation.x = 0;
+                        this.playerLeftLeg.rotation.z = 0;
+                        this.playerRightLeg.rotation.x = 0;
+                        this.playerRightLeg.rotation.z = 0;
+                        this.scene.remove(this.playerHorse);
+                        this.scene.add(this.player);
+                        this.player.position.copy(currentPos);
+                        console.log('Player mount destroyed!');
+                        return;
+                    }
+                } else {
+                    this.playerHealth -= 20;
+                    console.log('Player hit! Health:', this.playerHealth);
+                }
+                
+                // 玩家受击效果
+                this.player.children.forEach(child => {
+                    if (child.material && child.material.color) {
+                        const originalColor = child.material.color.getHex();
+                        child.material.color.setHex(0xff0000);
+                        setTimeout(() => {
+                            child.material.color.setHex(originalColor);
+                        }, 200);
+                    }
+                });
+            }
+
+            dealDamage(hit) {
+                if (this.enemyMounted) {
+                    this.enemyMountHealth -= hit;
+                    console.log('Enemy mount hit! Mount Health:', this.enemyMountHealth);
+                    
+                    if (this.enemyMountHealth <= 0) {
+                        // 敌人坐骑被击毁，敌人下马
+                        const currentPos = this.enemyHorse.position.clone();
+                        this.enemyMounted = false;
+                        this.enemyLeftLeg.rotation.x = 0;
+                        this.enemyLeftLeg.rotation.z = 0;
+                        this.enemyRightLeg.rotation.x = 0;
+                        this.enemyRightLeg.rotation.z = 0;
+                        this.scene.remove(this.enemyHorse);
+                        this.scene.add(this.enemy);
+                        this.enemy.position.copy(currentPos);
+                        console.log('Enemy mount destroyed!');
+                        return;
+                    }
+                } else {
+                    this.enemyHealth -= hit;
+                    console.log('Enemy hit! Health:', this.enemyHealth);
+                }
+                
+                // 设置恢复时间（受击后短暂休息）
+                this.enemyRecoveryTime = Date.now() + 1200; // 1.2秒恢复时间
+                this.enemyState = 'recovering';
+                
+                // 敌人受击效果
+                this.enemy.children.forEach(child => {
+                    if (child.material && child.material.color) {
+                        const originalColor = child.material.color.getHex();
+                        child.material.color.setHex(0xff0000);
+                        setTimeout(() => {
+                            child.material.color.setHex(originalColor);
+                        }, 200);
+                    }
+                });
+            }
+
+            updateUI() {
+                document.getElementById('health').textContent = this.playerHealth;
+                document.getElementById('enemyHealth').textContent = this.enemyHealth;
+                document.getElementById('state').textContent = this.playerState;
+                
+                // 更新技能冷却显示
+                const now = Date.now();
+                Object.keys(this.skills).forEach(skillName => {
+                    const skill = this.skills[skillName];
+                    const timeLeft = skill.cooldown - (now - skill.lastUsed);
+                    const element = document.getElementById(skillName);
+                    
+                    if (timeLeft > 0) {
+                        element.textContent = `${Math.ceil(timeLeft / 1000)}s`;
+                        element.style.color = '#ff6666';
+                    } else {
+                        element.textContent = 'Ready';
+                        element.style.color = '#66ff66';
+                    }
+                });
+            }
+
+            updateArrows() {
+                for (let i = this.arrows.length - 1; i >= 0; i--) {
+                    const arrow = this.arrows[i];
+                    const deltaTime = 16; // 假设60fps
+                    
+                    // 更新箭矢位置
+                    arrow.position.add(arrow.userData.velocity.clone().multiplyScalar(deltaTime));
+                    
+                    // 更新生命周期
+                    arrow.userData.lifeTime += deltaTime;
+                    
+                    // 检查与敌人碰撞
+                    const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                    const distance = arrow.position.distanceTo(enemyPos);
+                    
+                    if (distance < 1.0) {
+                        // 击中敌人
+                        this.playSound(450, 0.3, 'triangle'); // 箭矢击中音效
+                        this.dealDamage(30);
+                        this.scene.remove(arrow);
+                        this.arrows.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // 检查生命周期
+                    if (arrow.userData.lifeTime > arrow.userData.maxLifeTime) {
+                        this.scene.remove(arrow);
+                        this.arrows.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // 检查是否落地
+                    if (arrow.position.y < 0) {
+                        this.scene.remove(arrow);
+                        this.arrows.splice(i, 1);
+                    }
+                }
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                this.handleInput();
+                this.updateEnemyAI();
+                this.updateArrows();
+                this.checkLivestockInteraction();
+                this.updateUI();
+                
+                const time = Date.now() * 0.005;
+                
+                // 翅膀扇动动画
+                if (this.playerWings) {
+                    const flapSpeed = this.playerState === 'moving' ? 2 : 1;
+                    const flapAmount = this.playerState === 'moving' ? 0.3 : 0.1;
+                    
+                    this.playerWings.rotation.x = Math.sin(time * flapSpeed) * flapAmount;
+                    this.playerWings.children.forEach((wing, index) => {
+                        if (index < 2) { // 主翅膀
+                            wing.rotation.y = Math.sin(time * flapSpeed + index * Math.PI) * flapAmount * 0.5;
+                        }
+                    });
+                }
+                
+                // 玩家腿部摆动动画（仅在未骑马时）
+                if (this.playerLeftLeg && this.playerRightLeg && !this.playerMounted) {
+                    if (this.playerState === 'moving') {
+                        const walkSpeed = 4;
+                        const walkAmount = 0.4;
+                        
+                        this.playerLeftLeg.rotation.x = Math.sin(time * walkSpeed) * walkAmount;
+                        this.playerRightLeg.rotation.x = Math.sin(time * walkSpeed + Math.PI) * walkAmount;
+                    } else {
+                        this.playerLeftLeg.rotation.x = 0;
+                        this.playerRightLeg.rotation.x = 0;
+                    }
+                }
+                
+                // 玩家马腿摆动动画（仅在骑马时）
+                if (this.playerHorse && this.playerHorse.legs && this.playerMounted) {
+                    if (this.playerState === 'moving') {
+                        const gallop = 6;
+                        const gallopAmount = 0.3;
+                        
+                        // 前腿同步，后腿同步，前后腿相位差
+                        this.playerHorse.legs.frontLeft.rotation.x = Math.sin(time * gallop) * gallopAmount;
+                        this.playerHorse.legs.frontRight.rotation.x = Math.sin(time * gallop) * gallopAmount;
+                        this.playerHorse.legs.backLeft.rotation.x = Math.sin(time * gallop + Math.PI) * gallopAmount;
+                        this.playerHorse.legs.backRight.rotation.x = Math.sin(time * gallop + Math.PI) * gallopAmount;
+                    } else {
+                        Object.values(this.playerHorse.legs).forEach(leg => leg.rotation.x = 0);
+                    }
+                }
+                
+                // 敌人腿部摆动动画（仅在未骑马时）
+                if (this.enemyLeftLeg && this.enemyRightLeg && !this.enemyMounted) {
+                    if (this.enemyState === 'moving') {
+                        const walkSpeed = 4;
+                        const walkAmount = 0.4;
+                        
+                        this.enemyLeftLeg.rotation.x = Math.sin(time * walkSpeed) * walkAmount;
+                        this.enemyRightLeg.rotation.x = Math.sin(time * walkSpeed + Math.PI) * walkAmount;
+                    } else {
+                        this.enemyLeftLeg.rotation.x = 0;
+                        this.enemyRightLeg.rotation.x = 0;
+                    }
+                }
+                
+                // 敌人马腿摆动动画（仅在骑马时）
+                if (this.enemyHorse && this.enemyHorse.legs && this.enemyMounted) {
+                    if (this.enemyState === 'moving') {
+                        const gallop = 6;
+                        const gallopAmount = 0.3;
+                        
+                        this.enemyHorse.legs.frontLeft.rotation.x = Math.sin(time * gallop) * gallopAmount;
+                        this.enemyHorse.legs.frontRight.rotation.x = Math.sin(time * gallop) * gallopAmount;
+                        this.enemyHorse.legs.backLeft.rotation.x = Math.sin(time * gallop + Math.PI) * gallopAmount;
+                        this.enemyHorse.legs.backRight.rotation.x = Math.sin(time * gallop + Math.PI) * gallopAmount;
+                    } else {
+                        Object.values(this.enemyHorse.legs).forEach(leg => leg.rotation.x = 0);
+                    }
+                }
+                
+                this.renderer.render(this.scene, this.camera);
+            }
+            
+            // 定制系统方法
+            toggleCustomization() {
+                const panel = document.getElementById('customization-panel');
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+            }
+            
+            getFaceScale() {
+                switch(this.customization.faceShape) {
+                    case 'round': return { width: 1.2, height: 1.0, depth: 1.1 };
+                    case 'square': return { width: 1.1, height: 0.9, depth: 1.0 };
+                    case 'long': return { width: 0.9, height: 1.3, depth: 1.0 };
+                    default: return { width: 1.0, height: 1.0, depth: 1.0 };
+                }
+            }
+            
+            getBodyScale() {
+                switch(this.customization.bodyType) {
+                    case 'slim': return { width: 0.8, height: 1.1 };
+                    case 'muscular': return { width: 1.3, height: 1.0 };
+                    case 'heavy': return { width: 1.4, height: 0.9 };
+                    default: return { width: 1.0, height: 1.0 };
+                }
+            }
+            
+            createHair() {
+                if (this.playerHair) {
+                    this.player.remove(this.playerHair);
+                }
+                
+                if (this.customization.hairStyle === 'bald') return;
+                
+                let hairGeometry, hairMaterial;
+                const hairColor = 0x2F1B14;
+                
+                switch(this.customization.hairStyle) {
+                    case 'topknot':
+                        hairGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+                        this.playerHair = new THREE.Mesh(hairGeometry, new THREE.MeshLambertMaterial({ color: hairColor }));
+                        this.playerHair.position.set(0, 2.35, -0.1);
+                        break;
+                    case 'long':
+                        hairGeometry = new THREE.BoxGeometry(0.5, 0.1, 0.8);
+                        this.playerHair = new THREE.Mesh(hairGeometry, new THREE.MeshLambertMaterial({ color: hairColor }));
+                        this.playerHair.position.set(0, 2.25, 0);
+                        break;
+                    case 'short':
+                        hairGeometry = new THREE.SphereGeometry(0.27, 16, 16, 0, Math.PI * 2, 0, Math.PI * 0.6);
+                        this.playerHair = new THREE.Mesh(hairGeometry, new THREE.MeshLambertMaterial({ color: hairColor }));
+                        this.playerHair.position.set(0, 2.2, 0);
+                        break;
+                }
+                
+                if (this.playerHair) {
+                    this.playerHair.castShadow = true;
+                    this.player.add(this.playerHair);
+                }
+            }
+            
+            applyCustomization() {
+                // 获取UI值
+                this.customization.faceShape = document.getElementById('face-shape').value;
+                this.customization.skinColor = parseInt(document.getElementById('skin-color').value);
+                this.customization.bodyType = document.getElementById('body-type').value;
+                this.customization.clothingColor = parseInt(document.getElementById('clothing-color').value);
+                this.customization.hairStyle = document.getElementById('hair-style').value;
+                
+                // 重新创建玩家
+                if (this.player) {
+                    const currentPos = this.playerMounted ? this.playerHorse.position.clone() : this.player.position.clone();
+                    
+                    if (this.playerMounted) {
+                        this.playerHorse.remove(this.player);
+                        // 移除旧的马匹以防止重复
+                        this.scene.remove(this.playerHorse);
+                    } else {
+                        this.scene.remove(this.player);
+                    }
+                    
+                    this.setupPlayer();
+                    
+                    if (this.playerMounted) {
+                        // 重新创建马匹并设置位置
+                        this.playerHorse = this.createHorse(this.currentMount, true);
+                        this.playerHorse.position.copy(currentPos);
+                        this.scene.add(this.playerHorse);
+                        this.playerHorse.add(this.player);
+                        this.player.position.set(0, 1.1, -0.2);
+                    } else {
+                        this.player.position.copy(currentPos);
+                    }
+                }
+                
+                this.toggleCustomization();
+            }
+        }
+        
+        // 启动游戏
+        game = new TsushimaDuel();
+        
+        // 全局函数
+        window.toggleCustomization = () => game.toggleCustomization();
+        window.applyCustomization = () => game.applyCustomization();
+    </script>
+</body>
+</html>
