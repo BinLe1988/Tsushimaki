@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tsushima Duel</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <style>
         body {
             margin: 0;
@@ -91,7 +92,7 @@
         }
         #customizationToggle {
             position: absolute;
-            top: 300px;
+            top: 350px;
             right: 20px;
             z-index: 100;
         }
@@ -108,11 +109,13 @@
             <div>Q - 旋风斩: <span id="whirlwind">Ready</span></div>
             <div>E - 雷霆击: <span id="thunder">Ready</span></div>
             <div>Z - 天山问客: <span id="tianshan">Ready</span></div>
+            <div>R - 飞龙在天: <span id="dragon">Ready</span></div>
+            <div>T - 天降神火: <span id="firerain">Ready</span></div>
         </div>
     </div>
     <div id="controls">
         WASD: Move | Mouse: Look | Space: Attack/Shoot Arrow | Shift: Block<br>
-        Q: 旋风斩 | E: 雷霆击 | Z: 天山问客<br>
+        Q: 旋风斩 | E: 雷霆击 | Z: 天山问客 | R: 飞龙在天 | T: 天降神火 | F: 进入/退出建筑<br>
         弓箭: 30点伤害，自动瞄准，有飞行轨迹
     </div>
     <div id="weaponSelector">
@@ -136,11 +139,13 @@
         <button class="mount-btn" data-mount="zishen">紫骍</button>
         <button class="mount-btn" data-mount="jingfan">惊帆</button>
         <button class="mount-btn" data-mount="lifeisha">里飞沙</button>
+        <button class="mount-btn" data-mount="dragon">飞龙</button>
     </div>
     <div id="customizationToggle">
         <button onclick="toggleCustomization()" style="background: #FF6B35; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold;">武士定制</button>
+        <button onclick="toggleCameraMode()" style="background: #4CAF50; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; display: block;">切换视角</button>
     </div>
-    <div id="customization-panel" style="position: absolute; top: 300px; right: 10px; background: rgba(0,0,0,0.9); color: white; padding: 15px; border-radius: 8px; font-family: Arial; display: none; min-width: 200px;">
+    <div id="customization-panel" style="position: absolute; top: 350px; right: 10px; background: rgba(0,0,0,0.9); color: white; padding: 15px; border-radius: 8px; font-family: Arial; display: none; min-width: 200px;">
         <h3 style="margin-top: 0;">武士定制</h3>
         
         <div style="margin-bottom: 10px;">
@@ -254,14 +259,39 @@
                 this.skills = {
                     whirlwind: { name: '旋风斩', key: 'KeyQ', cooldown: 15000, lastUsed: 0 },
                     thunder: { name: '雷霆击', key: 'KeyE', cooldown: 15000, lastUsed: 0 },
-                    tianshan: { name: '天山问客', key: 'KeyZ', cooldown: 15000, lastUsed: 0 }
+                    tianshan: { name: '天山问客', key: 'KeyZ', cooldown: 15000, lastUsed: 0 },
+                    dragon: { name: '飞龙在天', key: 'KeyR', cooldown: 20000, lastUsed: 0 },
+                    firerain: { name: '天降神火', key: 'KeyT', cooldown: 25000, lastUsed: 0 }
                 };
+                
+                // 飞行系统
+                this.isFlying = false;
+                this.flyingHeight = 0;
+                
+                // 火球系统
+                this.fireballs = [];
                 
                 // 箭矢系统
                 this.arrows = [];
                 
                 // 牲畜系统
                 this.livestock = [];
+                
+                // 卫士系统
+                this.playerGuards = [];
+                this.enemyGuards = [];
+                
+                // 天气系统
+                this.weatherParticles = [];
+                this.currentWeather = 'clear';
+                this.weatherTimer = 0;
+                
+                // 建筑系统
+                this.buildings = [];
+                this.tents = [];
+                this.isIndoors = false;
+                this.currentBuilding = null;
+                this.cameraMode = 'outdoor'; // 'outdoor' or 'indoor'
                 
                 // 攻击姿势系统
                 this.attackPoses = ['上段', '中段', '下段', '左袈裟', '右袈裟'];
@@ -280,6 +310,7 @@
                 this.setupScene();
                 this.setupPlayer();
                 this.setupEnemy();
+                this.spawnGuards();
                 this.spawnLivestock();
                 this.setupControls();
                 this.setupCamera();
@@ -466,6 +497,18 @@
                 }
 
                 this.createBuildings();
+                this.createTents();
+            }
+
+            checkIndoorBoundary(newPosition) {
+                if (!this.currentBuilding) return false;
+                
+                const building = this.currentBuilding;
+                const dx = Math.abs(newPosition.x - building.position.x);
+                const dz = Math.abs(newPosition.z - building.position.z);
+                
+                // 限制在房屋内部，留出墙壁厚度
+                return dx > (building.width / 2 - 0.5) || dz > (building.depth / 2 - 0.5);
             }
 
             createBuildings() {
@@ -474,13 +517,35 @@
                 
                 for (let i = 0; i < 3; i++) {
                     const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-                    building.position.set(
+                    const pos = new THREE.Vector3(
                         (Math.random() - 0.5) * 80,
                         4,
                         (Math.random() - 0.5) * 80
                     );
+                    building.position.copy(pos);
                     building.castShadow = true;
                     this.scene.add(building);
+                    
+                    // 创建室内墙壁
+                    this.createInteriorWalls(pos);
+                    
+                    // 添加门
+                    const door = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.5, 3, 0.2),
+                        new THREE.MeshLambertMaterial({ color: 0x654321 })
+                    );
+                    door.position.set(pos.x, 1.5, pos.z + 2.6);
+                    this.scene.add(door);
+                    
+                    // 存储建筑信息
+                    this.buildings.push({
+                        mesh: building,
+                        door: door,
+                        position: pos,
+                        width: 5,
+                        height: 8,
+                        depth: 5
+                    });
                     
                     // 添加建筑物碰撞检测
                     this.collisionObjects.push({
@@ -489,6 +554,83 @@
                         height: 8,
                         depth: 5,
                         type: 'building'
+                    });
+                }
+            }
+
+            createInteriorWalls(buildingPos) {
+                const wallMaterial = new THREE.MeshLambertMaterial({ color: 0xA0522D });
+                
+                // 前墙（有门洞）
+                const frontWallLeft = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.75, 4, 0.2),
+                    wallMaterial
+                );
+                frontWallLeft.position.set(buildingPos.x - 1.625, 2, buildingPos.z + 2.4);
+                this.scene.add(frontWallLeft);
+                
+                const frontWallRight = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.75, 4, 0.2),
+                    wallMaterial
+                );
+                frontWallRight.position.set(buildingPos.x + 1.625, 2, buildingPos.z + 2.4);
+                this.scene.add(frontWallRight);
+                
+                // 后墙
+                const backWall = new THREE.Mesh(
+                    new THREE.BoxGeometry(5, 4, 0.2),
+                    wallMaterial
+                );
+                backWall.position.set(buildingPos.x, 2, buildingPos.z - 2.4);
+                this.scene.add(backWall);
+                
+                // 左墙
+                const leftWall = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.2, 4, 4.8),
+                    wallMaterial
+                );
+                leftWall.position.set(buildingPos.x - 2.4, 2, buildingPos.z);
+                this.scene.add(leftWall);
+                
+                // 右墙
+                const rightWall = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.2, 4, 4.8),
+                    wallMaterial
+                );
+                rightWall.position.set(buildingPos.x + 2.4, 2, buildingPos.z);
+                this.scene.add(rightWall);
+            }
+
+            createTents() {
+                for (let i = 0; i < 5; i++) {
+                    const tent = new THREE.Group();
+                    
+                    // 帐篷主体
+                    const tentBody = new THREE.Mesh(
+                        new THREE.ConeGeometry(2, 2.5, 4),
+                        new THREE.MeshLambertMaterial({ color: 0x8B4513 })
+                    );
+                    tentBody.position.y = 1.25;
+                    tent.add(tentBody);
+                    
+                    // 帐篷入口
+                    const entrance = new THREE.Mesh(
+                        new THREE.PlaneGeometry(1, 1.5),
+                        new THREE.MeshLambertMaterial({ color: 0x654321, side: THREE.DoubleSide })
+                    );
+                    entrance.position.set(0, 0.75, 1.8);
+                    tent.add(entrance);
+                    
+                    tent.position.set(
+                        (Math.random() - 0.5) * 100,
+                        0,
+                        (Math.random() - 0.5) * 100
+                    );
+                    
+                    this.scene.add(tent);
+                    this.tents.push({
+                        mesh: tent,
+                        position: tent.position.clone()
                     });
                 }
             }
@@ -833,6 +975,10 @@
             }
 
             createHorse(mountType, isPlayer = true) {
+                if (mountType === 'dragon') {
+                    return this.createDragon(isPlayer);
+                }
+                
                 const horse = new THREE.Group();
                 const colors = this.getHorseColors(mountType);
                 
@@ -889,6 +1035,58 @@
                 return horse;
             }
 
+            createDragon(isPlayer = true) {
+                const dragon = new THREE.Group();
+                const colors = { body: 0x8B0000, wings: 0x654321, scales: 0xFFD700 };
+                
+                // 龙身
+                const body = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.6, 0.8, 2.5, 8),
+                    new THREE.MeshLambertMaterial({ color: colors.body })
+                );
+                body.position.y = 1.2;
+                body.castShadow = true;
+                dragon.add(body);
+                
+                // 龙头
+                const head = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.4, 0.8, 8),
+                    new THREE.MeshLambertMaterial({ color: colors.body })
+                );
+                head.position.set(0, 1.8, 1.5);
+                head.rotation.x = Math.PI / 2;
+                dragon.add(head);
+                
+                // 龙翼
+                const leftWing = new THREE.Mesh(
+                    new THREE.ConeGeometry(1.5, 2, 4),
+                    new THREE.MeshLambertMaterial({ color: colors.wings, transparent: true, opacity: 0.8 })
+                );
+                leftWing.position.set(-1.2, 1.5, 0);
+                leftWing.rotation.z = Math.PI / 3;
+                dragon.add(leftWing);
+                
+                const rightWing = new THREE.Mesh(
+                    new THREE.ConeGeometry(1.5, 2, 4),
+                    new THREE.MeshLambertMaterial({ color: colors.wings, transparent: true, opacity: 0.8 })
+                );
+                rightWing.position.set(1.2, 1.5, 0);
+                rightWing.rotation.z = -Math.PI / 3;
+                dragon.add(rightWing);
+                
+                // 龙尾
+                const tail = new THREE.Mesh(
+                    new THREE.ConeGeometry(0.2, 1.5, 6),
+                    new THREE.MeshLambertMaterial({ color: colors.body })
+                );
+                tail.position.set(0, 1, -2);
+                tail.rotation.x = -Math.PI / 6;
+                dragon.add(tail);
+                
+                dragon.wings = { left: leftWing, right: rightWing };
+                return dragon;
+            }
+
             getHorseColors(mountType) {
                 const colors = {
                     chitu: { body: 0x8B0000, legs: 0x654321, mane: 0x2F1B14 },
@@ -899,7 +1097,8 @@
                     wuyuntaxue: { body: 0x2F2F2F, legs: 0x000000, mane: 0xFFFFFF },
                     zishen: { body: 0x800080, legs: 0x4B0082, mane: 0x8B008B },
                     jingfan: { body: 0x8B4513, legs: 0x654321, mane: 0x2F1B14 },
-                    lifeisha: { body: 0xF4A460, legs: 0xD2691E, mane: 0x8B4513 }
+                    lifeisha: { body: 0xF4A460, legs: 0xD2691E, mane: 0x8B4513 },
+                    dragon: { body: 0x8B0000, legs: 0x654321, mane: 0xFFD700 }
                 };
                 return colors[mountType] || colors.chitu;
             }
@@ -1068,6 +1267,8 @@
                 if (mountType === 'none') {
                     // 玩家下马 - 恢复腿部正常姿势
                     this.playerMounted = false;
+                    this.isFlying = false;
+                    this.flyingHeight = 0;
                     this.playerLeftLeg.rotation.x = 0;
                     this.playerLeftLeg.rotation.z = 0;
                     this.playerRightLeg.rotation.x = 0;
@@ -1075,6 +1276,7 @@
                     this.scene.remove(this.playerHorse);
                     this.scene.add(this.player);
                     this.player.position.copy(currentPos);
+                    this.player.position.y = 0; // 确保回到地面
                     
                     // 敌人也下马
                     this.enemyMounted = false;
@@ -1085,10 +1287,19 @@
                     this.scene.remove(this.enemyHorse);
                     this.scene.add(this.enemy);
                     this.enemy.position.copy(enemyCurrentPos);
+                    this.enemy.position.y = 0;
                 } else {
                     // 玩家上马或换马 - 调整腿部骑马姿势
                     this.playerMounted = true;
                     this.playerMountHealth = 200; // 重置玩家坐骑生命值
+                    
+                    // 非飞龙坐骑回到地面
+                    if (mountType !== 'dragon') {
+                        this.isFlying = false;
+                        this.flyingHeight = 0;
+                        currentPos.y = 0;
+                    }
+                    
                     this.playerLeftLeg.rotation.x = Math.PI / 3;
                     this.playerLeftLeg.rotation.z = Math.PI / 8;
                     this.playerRightLeg.rotation.x = Math.PI / 3;
@@ -1105,6 +1316,7 @@
                     // 敌人也上马
                     this.enemyMounted = true;
                     this.enemyMountHealth = 200; // 重置敌人坐骑生命值
+                    enemyCurrentPos.y = 0; // 敌人也回到地面
                     this.enemyLeftLeg.rotation.x = Math.PI / 3;
                     this.enemyLeftLeg.rotation.z = Math.PI / 8;
                     this.enemyRightLeg.rotation.x = Math.PI / 3;
@@ -1118,6 +1330,19 @@
                     this.enemyHorse.add(this.enemy);
                     this.enemy.position.set(0, 1.1, -0.2);
                 }
+            }
+
+            checkCharacterCollision(newPosition, currentCharacter) {
+                const minDistance = 1.2;
+                
+                // 检查与其他卫士的碰撞
+                const allGuards = [...this.playerGuards, ...this.enemyGuards];
+                for (let guard of allGuards) {
+                    if (guard === currentCharacter) continue;
+                    if (newPosition.distanceTo(guard.position) < minDistance) return true;
+                }
+                
+                return false;
             }
 
             checkCollision(newPosition) {
@@ -1174,9 +1399,9 @@
                     moveX /= length;
                     moveZ /= length;
 
-                    // 根据相机角度旋转移动方向
-                    const rotatedX = moveX * Math.cos(cameraAngle) - moveZ * Math.sin(cameraAngle);
-                    const rotatedZ = moveX * Math.sin(cameraAngle) + moveZ * Math.cos(cameraAngle);
+                    // 根据相机角度旋转移动方向 - W键向前（相机正前方）
+                    const rotatedX = moveX * Math.cos(cameraAngle) + moveZ * Math.sin(cameraAngle);
+                    const rotatedZ = -moveX * Math.sin(cameraAngle) + moveZ * Math.cos(cameraAngle);
 
                     // 获取当前位置（根据是否骑马）
                     const currentPos = this.playerMounted ? this.playerHorse.position : this.player.position;
@@ -1199,8 +1424,14 @@
                     // 检查与环境物体的碰撞
                     const hasCollision = this.checkCollision(newPlayerPos);
                     
+                    // 检查与卫士的碰撞
+                    const hasCharacterCollision = this.checkCharacterCollision(newPlayerPos, null);
+                    
+                    // 检查室内边界限制
+                    const hasIndoorBoundary = this.isIndoors ? this.checkIndoorBoundary(newPlayerPos) : false;
+                    
                     // 如果没有碰撞且距离敌人足够远，允许移动
-                    if (!hasCollision && enemyDistance > 2.0) {
+                    if (!hasCollision && !hasCharacterCollision && !hasIndoorBoundary && enemyDistance > 2.0) {
                         if (this.playerMounted) {
                             this.playerHorse.position.x = boundedX;
                             this.playerHorse.position.z = boundedZ;
@@ -1236,14 +1467,124 @@
                     this.useSkill('tianshan');
                     this.performAttack(120);
                 }
+                if (this.keys['KeyR'] && this.currentMount === 'dragon') {
+                    this.useSkill('dragon');
+                    this.performDragonTornado();
+                }
+                if (this.keys['KeyT'] && this.currentMount === 'dragon' && this.isFlying) {
+                    this.useSkill('firerain');
+                    this.performFireRain();
+                }
+
+                // 飞行控制
+                if (this.currentMount === 'dragon' && this.playerMounted) {
+                    this.isFlying = true;
+                    if (this.keys['Space']) {
+                        this.flyingHeight = Math.min(this.flyingHeight + 0.2, 15);
+                    }
+                    if (this.keys['ShiftLeft']) {
+                        this.flyingHeight = Math.max(this.flyingHeight - 0.2, 0);
+                    }
+                    this.playerHorse.position.y = this.flyingHeight;
+                } else {
+                    this.isFlying = false;
+                    this.flyingHeight = 0;
+                }
 
                 this.playerState = moved ? 'moving' : (this.playerState === 'attacking' || this.playerState === 'blocking' ? this.playerState : 'idle');
 
                 // 相机跟随玩家
                 const targetPos = this.playerMounted ? this.playerHorse.position : this.player.position;
-                this.camera.position.x = targetPos.x + Math.sin(cameraAngle) * 12;
-                this.camera.position.z = targetPos.z + Math.cos(cameraAngle) * 12;
-                this.camera.lookAt(targetPos.x, targetPos.y + 2, targetPos.z);
+                
+                if (this.cameraMode === 'outdoor') {
+                    // 室外第三人称相机
+                    this.camera.position.x = targetPos.x + Math.sin(cameraAngle) * 12;
+                    this.camera.position.z = targetPos.z + Math.cos(cameraAngle) * 12;
+                    this.camera.position.y = targetPos.y + 8;
+                    this.camera.lookAt(targetPos.x, targetPos.y + 2, targetPos.z);
+                } else {
+                    // 室内相机模式
+                    this.camera.position.x = targetPos.x + Math.sin(cameraAngle) * 3;
+                    this.camera.position.z = targetPos.z + Math.cos(cameraAngle) * 3;
+                    this.camera.position.y = targetPos.y + 4;
+                    this.camera.lookAt(targetPos.x, targetPos.y + 1, targetPos.z);
+                }
+            }
+
+            spawnGuards() {
+                // 创建玩家卫士
+                for (let i = 0; i < 10; i++) {
+                    const guard = this.createGuard(true);
+                    guard.position.set(
+                        (Math.random() - 0.5) * 60 - 30,
+                        0,
+                        (Math.random() - 0.5) * 60 - 30
+                    );
+                    guard.userData = {
+                        health: 80,
+                        lastAction: 0,
+                        state: 'idle',
+                        isPlayer: true
+                    };
+                    this.scene.add(guard);
+                    this.playerGuards.push(guard);
+                }
+                
+                // 创建敌人卫士
+                for (let i = 0; i < 10; i++) {
+                    const guard = this.createGuard(false);
+                    guard.position.set(
+                        (Math.random() - 0.5) * 60 + 30,
+                        0,
+                        (Math.random() - 0.5) * 60 + 30
+                    );
+                    guard.userData = {
+                        health: 80,
+                        lastAction: 0,
+                        state: 'idle',
+                        isPlayer: false
+                    };
+                    this.scene.add(guard);
+                    this.enemyGuards.push(guard);
+                }
+            }
+
+            createGuard(isPlayer) {
+                const guard = new THREE.Group();
+                const color = isPlayer ? 0x4169E1 : 0x8B0000;
+                
+                // 身体
+                const body = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.3, 0.4, 1.0, 8),
+                    new THREE.MeshLambertMaterial({ color })
+                );
+                body.position.y = 1.0;
+                body.castShadow = true;
+                guard.add(body);
+                
+                // 头部
+                const head = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.2, 16, 16),
+                    new THREE.MeshLambertMaterial({ color: 0xfdbcb4 })
+                );
+                head.position.y = 1.7;
+                head.castShadow = true;
+                guard.add(head);
+                
+                // 武器
+                const weapon = new THREE.Group();
+                weapon.position.set(0.4, 1.2, 0);
+                guard.add(weapon);
+                
+                const sword = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.04, 0.8, 0.02),
+                    new THREE.MeshPhongMaterial({ color: 0xC0C0C0 })
+                );
+                sword.position.y = 0.4;
+                weapon.add(sword);
+                
+                guard.weapon = weapon;
+                return guard;
             }
 
             spawnLivestock() {
@@ -1387,6 +1728,15 @@
                                 this.dealDamage(hit);
                             }
                             
+                            // 检测对卫士的攻击
+                            this.enemyGuards.forEach(guard => {
+                                const guardDistance = playerPos.distanceTo(guard.position);
+                                if (guardDistance < attackRange) {
+                                    guard.userData.health -= hit;
+                                    if (guard.userData.health < 0) guard.userData.health = 0;
+                                }
+                            });
+                            
                             // 恢复原始姿势
                             setTimeout(() => {
                                 this.playerRightArm.rotation.z = originalRotation;
@@ -1472,6 +1822,200 @@
                 }
                 
                 return arrow;
+            }
+
+            updateGuardAI() {
+                const currentTime = Date.now();
+                const allGuards = [...this.playerGuards, ...this.enemyGuards];
+                
+                allGuards.forEach(guard => {
+                    const guardPos = guard.position;
+                    const enemies = guard.userData.isPlayer ? this.enemyGuards : this.playerGuards;
+                    
+                    // 如果已经有对手，继续与该对手战斗
+                    if (guard.userData.target && guard.userData.target.userData.target === guard) {
+                        const targetDistance = guardPos.distanceTo(guard.userData.target.position);
+                        
+                        if (currentTime - guard.userData.lastAction > 500) {
+                            if (targetDistance > 2.5) {
+                                // 移动向对手
+                                const direction = new THREE.Vector3();
+                                direction.subVectors(guard.userData.target.position, guardPos);
+                                direction.normalize();
+                                
+                                const moveSpeed = 0.03;
+                                const newX = guard.position.x + direction.x * moveSpeed;
+                                const newZ = guard.position.z + direction.z * moveSpeed;
+                                const newPos = new THREE.Vector3(newX, guard.position.y, newZ);
+                                
+                                if (!this.checkCharacterCollision(newPos, guard)) {
+                                    guard.position.x = newX;
+                                    guard.position.z = newZ;
+                                    guard.lookAt(guard.userData.target.position.x, guard.position.y, guard.userData.target.position.z);
+                                }
+                            } else {
+                                // 攻击对手
+                                guard.weapon.rotation.z = Math.PI / 4;
+                                guard.userData.target.userData.health -= 15;
+                                
+                                if (guard.userData.target.userData.health <= 0) {
+                                    guard.userData.target.userData.health = 0;
+                                }
+                                
+                                setTimeout(() => {
+                                    guard.weapon.rotation.z = 0;
+                                }, 200);
+                                
+                                guard.userData.lastAction = currentTime;
+                            }
+                        }
+                    } else {
+                        // 寻找没有对手的敌人进行决斗
+                        let availableEnemy = null;
+                        let minDistance = Infinity;
+                        
+                        enemies.forEach(enemy => {
+                            if (!enemy.userData.target) {
+                                const distance = guardPos.distanceTo(enemy.position);
+                                if (distance < minDistance) {
+                                    minDistance = distance;
+                                    availableEnemy = enemy;
+                                }
+                            }
+                        });
+                        
+                        // 建立决斗关系
+                        if (availableEnemy) {
+                            guard.userData.target = availableEnemy;
+                            availableEnemy.userData.target = guard;
+                        }
+                    }
+                });
+            }
+
+            updateWeather() {
+                const time = Date.now();
+                
+                // 每30秒随机改变天气
+                if (time - this.weatherTimer > 30000) {
+                    const weather = ['clear', 'wind', 'rain'];
+                    this.currentWeather = weather[Math.floor(Math.random() * weather.length)];
+                    this.weatherTimer = time;
+                    this.createWeatherEffect();
+                }
+                
+                // 更新天气粒子
+                this.weatherParticles.forEach((particle, index) => {
+                    if (this.currentWeather === 'rain') {
+                        // 更逼真的雨滴效果
+                        particle.position.y -= 0.8 + Math.random() * 0.4;
+                        particle.position.x += Math.sin(time * 0.002) * 0.05;
+                        particle.position.z += Math.cos(time * 0.002) * 0.02;
+                        
+                        if (particle.position.y < 0) {
+                            particle.position.y = 25 + Math.random() * 10;
+                            particle.position.x = (Math.random() - 0.5) * 300;
+                            particle.position.z = (Math.random() - 0.5) * 300;
+                        }
+                    } else if (this.currentWeather === 'wind') {
+                        if (particle.geometry.type === 'PlaneGeometry') {
+                            // 叶子飘动
+                            particle.position.x += 0.4 + Math.sin(time * 0.003 + index) * 0.2;
+                            particle.position.y += Math.sin(time * 0.004 + index) * 0.08;
+                            particle.position.z += Math.cos(time * 0.003 + index) * 0.1;
+                            particle.rotation.x += 0.05;
+                            particle.rotation.y += 0.03;
+                            particle.rotation.z += 0.08;
+                            
+                            if (particle.position.x > 150) {
+                                particle.position.x = -150;
+                                particle.position.y = Math.random() * 8 + 1;
+                                particle.position.z = (Math.random() - 0.5) * 300;
+                            }
+                        } else {
+                            // 风尘效果
+                            particle.position.x += 0.6 + Math.random() * 0.3;
+                            particle.position.y += Math.sin(time * 0.005 + index) * 0.03;
+                            particle.position.z += Math.sin(time * 0.004 + index) * 0.1;
+                            
+                            if (particle.position.x > 150) {
+                                particle.position.x = -150;
+                                particle.position.y = Math.random() * 3 + 0.5;
+                                particle.position.z = (Math.random() - 0.5) * 300;
+                            }
+                        }
+                    }
+                });
+            }
+            
+            createWeatherEffect() {
+                // 清除现有天气粒子
+                this.weatherParticles.forEach(particle => {
+                    this.scene.remove(particle);
+                });
+                this.weatherParticles = [];
+                
+                if (this.currentWeather === 'rain') {
+                    // 创建更逼真的雨滴
+                    for (let i = 0; i < 800; i++) {
+                        const raindrop = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.005, 0.01, 0.5, 4),
+                            new THREE.MeshBasicMaterial({ color: 0x87CEEB, transparent: true, opacity: 0.7 })
+                        );
+                        raindrop.position.set(
+                            (Math.random() - 0.5) * 300,
+                            Math.random() * 25 + 15,
+                            (Math.random() - 0.5) * 300
+                        );
+                        raindrop.rotation.x = Math.PI / 2;
+                        this.scene.add(raindrop);
+                        this.weatherParticles.push(raindrop);
+                    }
+                } else if (this.currentWeather === 'wind') {
+                    // 创建更逼真的风效果
+                    for (let i = 0; i < 200; i++) {
+                        const leaf = new THREE.Mesh(
+                            new THREE.PlaneGeometry(0.15, 0.08),
+                            new THREE.MeshBasicMaterial({ 
+                                color: Math.random() > 0.5 ? 0x228B22 : 0x32CD32, 
+                                transparent: true, 
+                                opacity: 0.9, 
+                                side: THREE.DoubleSide 
+                            })
+                        );
+                        leaf.position.set(
+                            (Math.random() - 0.5) * 300,
+                            Math.random() * 8 + 1,
+                            (Math.random() - 0.5) * 300
+                        );
+                        leaf.rotation.set(
+                            Math.random() * Math.PI,
+                            Math.random() * Math.PI,
+                            Math.random() * Math.PI
+                        );
+                        this.scene.add(leaf);
+                        this.weatherParticles.push(leaf);
+                    }
+                    
+                    // 添加风尘效果
+                    for (let i = 0; i < 100; i++) {
+                        const dust = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.02, 4, 4),
+                            new THREE.MeshBasicMaterial({ 
+                                color: 0xD2B48C, 
+                                transparent: true, 
+                                opacity: 0.4 
+                            })
+                        );
+                        dust.position.set(
+                            (Math.random() - 0.5) * 300,
+                            Math.random() * 3 + 0.5,
+                            (Math.random() - 0.5) * 300
+                        );
+                        this.scene.add(dust);
+                        this.weatherParticles.push(dust);
+                    }
+                }
             }
 
             updateArrows() {
@@ -1625,11 +2169,211 @@
                 }, 200);
             }
 
+            performDragonTornado() {
+                if (this.currentMount !== 'dragon' || !this.playerMounted) return;
+                
+                // 创建龙卷风效果
+                const tornado = new THREE.Group();
+                const playerPos = this.playerHorse.position;
+                tornado.position.copy(playerPos);
+                
+                // 龙卷风螺旋体
+                for (let i = 0; i < 20; i++) {
+                    const ring = new THREE.Mesh(
+                        new THREE.TorusGeometry(2 + i * 0.3, 0.1, 8, 16),
+                        new THREE.MeshBasicMaterial({ color: 0x87CEEB, transparent: true, opacity: 0.6 })
+                    );
+                    ring.position.y = i * 0.5;
+                    ring.rotation.y = i * 0.3;
+                    tornado.add(ring);
+                }
+                
+                this.scene.add(tornado);
+                
+                // 龙卷风动画和伤害
+                let rotation = 0;
+                const animate = () => {
+                    rotation += 0.2;
+                    tornado.rotation.y = rotation;
+                    
+                    // 检测敌人伤害
+                    const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                    const distance = tornado.position.distanceTo(enemyPos);
+                    if (distance < 8) {
+                        this.dealDamage(100);
+                    }
+                    
+                    // 检测卫士伤害
+                    this.enemyGuards.forEach(guard => {
+                        const guardDistance = tornado.position.distanceTo(guard.position);
+                        if (guardDistance < 8) {
+                            guard.userData.health -= 30;
+                            if (guard.userData.health < 0) guard.userData.health = 0;
+                        }
+                    });
+                    
+                    if (rotation < Math.PI * 4) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        this.scene.remove(tornado);
+                        this.playerState = 'idle';
+                    }
+                };
+                animate();
+            }
+
+            performFireRain() {
+                if (this.currentMount !== 'dragon' || !this.isFlying) return;
+                
+                const playerPos = this.playerHorse.position;
+                
+                // 投掷10枚火球
+                for (let i = 0; i < 10; i++) {
+                    setTimeout(() => {
+                        const fireball = this.createFireball();
+                        fireball.position.set(
+                            playerPos.x + (Math.random() - 0.5) * 4,
+                            playerPos.y,
+                            playerPos.z + (Math.random() - 0.5) * 4
+                        );
+                        
+                        fireball.userData = {
+                            velocity: new THREE.Vector3(
+                                (Math.random() - 0.5) * 0.2,
+                                -0.3,
+                                (Math.random() - 0.5) * 0.2
+                            ),
+                            lifeTime: 0,
+                            maxLifeTime: 8000
+                        };
+                        
+                        this.scene.add(fireball);
+                        this.fireballs.push(fireball);
+                    }, i * 200);
+                }
+            }
+            
+            createFireball() {
+                const fireball = new THREE.Group();
+                
+                // 火球核心
+                const core = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.3, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xFF4500 })
+                );
+                fireball.add(core);
+                
+                // 火焰外层
+                const flame = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.4, 8, 8),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0xFF6600, 
+                        transparent: true, 
+                        opacity: 0.7 
+                    })
+                );
+                fireball.add(flame);
+                
+                return fireball;
+            }
+            
+            updateFireballs() {
+                for (let i = this.fireballs.length - 1; i >= 0; i--) {
+                    const fireball = this.fireballs[i];
+                    const deltaTime = 16;
+                    
+                    // 更新火球位置
+                    fireball.position.add(fireball.userData.velocity.clone().multiplyScalar(deltaTime));
+                    fireball.userData.lifeTime += deltaTime;
+                    
+                    // 火球旋转效果
+                    fireball.rotation.x += 0.1;
+                    fireball.rotation.y += 0.15;
+                    
+                    // 检查落地爆炸
+                    if (fireball.position.y <= 0) {
+                        this.explodeFireball(fireball);
+                        this.scene.remove(fireball);
+                        this.fireballs.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // 检查生命周期
+                    if (fireball.userData.lifeTime > fireball.userData.maxLifeTime) {
+                        this.scene.remove(fireball);
+                        this.fireballs.splice(i, 1);
+                    }
+                }
+            }
+            
+            explodeFireball(fireball) {
+                const explosionPos = fireball.position;
+                
+                // 检测爆炸伤害
+                const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                const enemyDistance = explosionPos.distanceTo(enemyPos);
+                if (enemyDistance < 3) {
+                    this.dealDamage(40);
+                }
+                
+                // 检测卫士伤害
+                this.enemyGuards.forEach(guard => {
+                    const guardDistance = explosionPos.distanceTo(guard.position);
+                    if (guardDistance < 3) {
+                        guard.userData.health -= 25;
+                        if (guard.userData.health < 0) guard.userData.health = 0;
+                    }
+                });
+                
+                // 爆炸特效
+                const explosion = new THREE.Mesh(
+                    new THREE.SphereGeometry(2, 8, 8),
+                    new THREE.MeshBasicMaterial({ 
+                        color: 0xFF0000, 
+                        transparent: true, 
+                        opacity: 0.8 
+                    })
+                );
+                explosion.position.copy(explosionPos);
+                this.scene.add(explosion);
+                
+                setTimeout(() => {
+                    this.scene.remove(explosion);
+                }, 500);
+            }
+
             updateEnemyAI() {
                 const currentTime = Date.now();
                 const playerPos = this.playerMounted ? this.playerHorse.position : this.player.position;
                 const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
                 const distance = playerPos.distanceTo(enemyPos);
+                
+                // 如果玩家在室内，敌人离开
+                if (this.isIndoors) {
+                    this.enemyState = 'retreating';
+                    const retreatDirection = new THREE.Vector3();
+                    retreatDirection.subVectors(enemyPos, playerPos);
+                    retreatDirection.normalize();
+                    
+                    const moveSpeed = this.enemyMounted ? 0.1 : 0.08;
+                    const newX = enemyPos.x + retreatDirection.x * moveSpeed;
+                    const newZ = enemyPos.z + retreatDirection.z * moveSpeed;
+                    const newEnemyPos = new THREE.Vector3(newX, enemyPos.y, newZ);
+                    
+                    const hasCollision = this.checkCollision(newEnemyPos);
+                    const hasCharacterCollision = this.checkCharacterCollision(newEnemyPos, null);
+                    
+                    if (!hasCollision && !hasCharacterCollision) {
+                        if (this.enemyMounted) {
+                            this.enemyHorse.position.x = newX;
+                            this.enemyHorse.position.z = newZ;
+                        } else {
+                            this.enemy.position.x = newX;
+                            this.enemy.position.z = newZ;
+                        }
+                    }
+                    return;
+                }
                 
                 // 检查是否在恢复期
                 if (currentTime < this.enemyRecoveryTime) {
@@ -1641,7 +2385,7 @@
                 this.enemyDefensiveMode = this.enemyHealth < 60;
                 
                 // 敌人AI行为
-                if (this.enemyState === 'idle' || this.enemyState === 'moving' || this.enemyState === 'recovering') {
+                if (this.enemyState === 'idle' || this.enemyState === 'moving' || this.enemyState === 'recovering' || this.enemyState === 'retreating') {
                     if (distance > 4) {
                         // 跟随玩家
                         this.enemyState = 'moving';
@@ -1670,9 +2414,12 @@
                         // 检查与环境物体的碰撞
                         const hasCollision = this.checkCollision(newEnemyPos);
                         
+                        // 检查与卫士的碰撞
+                        const hasCharacterCollision = this.checkCharacterCollision(newEnemyPos, null);
+                        
                         // 如果没有碰撞且距离玩家足够远，允许移动
                         const minDistance = (this.playerMounted || this.enemyMounted) ? 2.5 : 1.5;
-                        if (!hasCollision && newDistance > minDistance) {
+                        if (!hasCollision && !hasCharacterCollision && newDistance > minDistance) {
                             if (this.enemyMounted) {
                                 this.enemyHorse.position.x = boundedX;
                                 this.enemyHorse.position.z = boundedZ;
@@ -1729,6 +2476,15 @@
                             this.playSound(350, 0.5, 'square'); // 敌人击中音效
                             this.playerTakeDamage();
                         }
+                        
+                        // 检测对玩家卫士的攻击
+                        this.playerGuards.forEach(guard => {
+                            const guardDistance = enemyPos.distanceTo(guard.position);
+                            if (guardDistance < attackRange) {
+                                guard.userData.health -= 20;
+                                if (guard.userData.health < 0) guard.userData.health = 0;
+                            }
+                        });
                         
                         setTimeout(() => {
                             this.enemyRightArm.rotation.z = originalRotation;
@@ -1840,6 +2596,84 @@
                 });
             }
 
+            checkBuildingInteraction() {
+                const playerPos = this.playerMounted ? this.playerHorse.position : this.player.position;
+                
+                if (!this.isIndoors) {
+                    // 检查房屋门口
+                    this.buildings.forEach(building => {
+                        const doorDistance = playerPos.distanceTo(building.door.position);
+                        if (doorDistance < 2 && this.keys['KeyF']) {
+                            this.enterBuilding(building);
+                        }
+                    });
+                } else {
+                    // 室内时按F退出
+                    if (this.keys['KeyF'] && this.currentBuilding) {
+                        this.exitBuilding();
+                    }
+                }
+                
+                // 检查帐篷
+                this.tents.forEach(tent => {
+                    const tentDistance = playerPos.distanceTo(tent.position);
+                    if (tentDistance < 3 && this.currentWeather === 'rain') {
+                        console.log('在帐篷内避雨');
+                    }
+                });
+            }
+            
+            enterBuilding(building) {
+                this.isIndoors = true;
+                this.currentBuilding = building;
+                this.cameraMode = 'indoor';
+                
+                // 移动玩家到室内
+                if (this.playerMounted) {
+                    this.playerHorse.position.set(
+                        building.position.x,
+                        0,
+                        building.position.z + 1
+                    );
+                } else {
+                    this.player.position.set(
+                        building.position.x,
+                        0,
+                        building.position.z + 1
+                    );
+                }
+                
+                console.log('进入房屋，按F键退出');
+            }
+            
+            exitBuilding() {
+                this.isIndoors = false;
+                this.cameraMode = 'outdoor';
+                
+                // 退出到室外
+                if (this.playerMounted) {
+                    this.playerHorse.position.set(
+                        this.currentBuilding.position.x,
+                        0,
+                        this.currentBuilding.position.z + 4
+                    );
+                } else {
+                    this.player.position.set(
+                        this.currentBuilding.position.x,
+                        0,
+                        this.currentBuilding.position.z + 4
+                    );
+                }
+                
+                this.currentBuilding = null;
+                console.log('退出房屋');
+            }
+            
+            toggleCameraMode() {
+                this.cameraMode = this.cameraMode === 'outdoor' ? 'indoor' : 'outdoor';
+                console.log('切换到', this.cameraMode === 'outdoor' ? '室外' : '室内', '视角');
+            }
+
             updateUI() {
                 document.getElementById('health').textContent = this.playerHealth;
                 document.getElementById('enemyHealth').textContent = this.enemyHealth;
@@ -1853,12 +2687,14 @@
                     const timeLeft = skill.cooldown - (now - skill.lastUsed);
                     const element = document.getElementById(skillName);
                     
-                    if (timeLeft > 0) {
-                        element.textContent = `${Math.ceil(timeLeft / 1000)}s`;
-                        element.style.color = '#ff6666';
-                    } else {
-                        element.textContent = 'Ready';
-                        element.style.color = '#66ff66';
+                    if (element) {
+                        if (timeLeft > 0) {
+                            element.textContent = `${Math.ceil(timeLeft / 1000)}s`;
+                            element.style.color = '#ff6666';
+                        } else {
+                            element.textContent = 'Ready';
+                            element.style.color = '#66ff66';
+                        }
                     }
                 });
             }
@@ -1907,8 +2743,12 @@
                 
                 this.handleInput();
                 this.updateEnemyAI();
+                this.updateGuardAI();
+                this.updateWeather();
                 this.updateArrows();
+                this.updateFireballs();
                 this.checkLivestockInteraction();
+                this.checkBuildingInteraction();
                 this.updateUI();
                 
                 const time = Date.now() * 0.005;
@@ -2090,6 +2930,7 @@
         // 全局函数
         window.toggleCustomization = () => game.toggleCustomization();
         window.applyCustomization = () => game.applyCustomization();
+        window.toggleCameraMode = () => game.toggleCameraMode();
     </script>
 </body>
 </html>
