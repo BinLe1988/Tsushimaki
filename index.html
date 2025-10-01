@@ -315,6 +315,9 @@
             }
 
             setupScene() {
+                // 初始化碰撞对象数组
+                this.collisionObjects = [];
+                
                 // 草地地面
                 const groundGeometry = new THREE.PlaneGeometry(200, 200);
                 const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x4a7c59 }); // 草绿色
@@ -350,7 +353,7 @@
                 lake.position.set(20, 0.01, -10);
                 this.scene.add(lake);
 
-                // 湖边石头
+                // 湖边石头（带碰撞检测）
                 for (let i = 0; i < 8; i++) {
                     const stoneGeometry = new THREE.SphereGeometry(0.5 + Math.random() * 0.5, 8, 6);
                     const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0x696969 });
@@ -363,6 +366,13 @@
                     );
                     stone.castShadow = true;
                     this.scene.add(stone);
+                    
+                    // 添加碰撞检测
+                    this.collisionObjects.push({
+                        mesh: stone,
+                        radius: 1.0,
+                        type: 'stone'
+                    });
                 }
 
                 // 远山
@@ -381,7 +391,7 @@
                     this.scene.add(mountain);
                 }
 
-                // 远处的房屋
+                // 远处的房屋（带碰撞检测）
                 for (let i = 0; i < 6; i++) {
                     // 房屋主体
                     const houseGeometry = new THREE.BoxGeometry(3, 4, 3);
@@ -394,6 +404,15 @@
                     );
                     house.castShadow = true;
                     this.scene.add(house);
+                    
+                    // 添加房屋碰撞检测
+                    this.collisionObjects.push({
+                        mesh: house,
+                        width: 3,
+                        height: 4,
+                        depth: 3,
+                        type: 'building'
+                    });
 
                     // 屋顶
                     const roofGeometry = new THREE.ConeGeometry(2.5, 2, 4);
@@ -415,7 +434,7 @@
                     this.scene.add(chimney);
                 }
 
-                // 树木
+                // 树木（带碰撞检测）
                 for (let i = 0; i < 12; i++) {
                     // 树干
                     const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 3, 8);
@@ -428,6 +447,13 @@
                     );
                     trunk.castShadow = true;
                     this.scene.add(trunk);
+                    
+                    // 添加树木碰撞检测
+                    this.collisionObjects.push({
+                        mesh: trunk,
+                        radius: 0.8,
+                        type: 'tree'
+                    });
 
                     // 树冠
                     const crownGeometry = new THREE.SphereGeometry(2, 8, 6);
@@ -455,6 +481,15 @@
                     );
                     building.castShadow = true;
                     this.scene.add(building);
+                    
+                    // 添加建筑物碰撞检测
+                    this.collisionObjects.push({
+                        mesh: building,
+                        width: 5,
+                        height: 8,
+                        depth: 5,
+                        type: 'building'
+                    });
                 }
             }
 
@@ -1085,6 +1120,29 @@
                 }
             }
 
+            checkCollision(newPosition) {
+                for (let obj of this.collisionObjects) {
+                    const objPos = obj.mesh.position;
+                    const distance = newPosition.distanceTo(objPos);
+                    
+                    if (obj.type === 'stone' || obj.type === 'tree') {
+                        // 圆形碰撞检测
+                        if (distance < obj.radius + 1.0) {
+                            return true;
+                        }
+                    } else if (obj.type === 'building') {
+                        // 矩形碰撞检测
+                        const dx = Math.abs(newPosition.x - objPos.x);
+                        const dz = Math.abs(newPosition.z - objPos.z);
+                        
+                        if (dx < (obj.width / 2 + 1.0) && dz < (obj.depth / 2 + 1.0)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
             handleInput() {
                 const speed = this.playerMounted ? 0.15 : 0.1; // 骑马时移动更快
                 let moved = false;
@@ -1131,13 +1189,18 @@
                     const boundedX = Math.max(-100, Math.min(100, newX));
                     const boundedZ = Math.max(-100, Math.min(100, newZ));
                     
-                    // 检查与敌人的碰撞
+                    // 创建新位置向量进行碰撞检测
                     const newPlayerPos = new THREE.Vector3(boundedX, currentPos.y, boundedZ);
-                    const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
-                    const distance = newPlayerPos.distanceTo(enemyPos);
                     
-                    // 如果距离大于最小碰撞距离，允许移动
-                    if (distance > 2.0) { // 骑马时需要更大的碰撞距离
+                    // 检查与敌人的碰撞
+                    const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
+                    const enemyDistance = newPlayerPos.distanceTo(enemyPos);
+                    
+                    // 检查与环境物体的碰撞
+                    const hasCollision = this.checkCollision(newPlayerPos);
+                    
+                    // 如果没有碰撞且距离敌人足够远，允许移动
+                    if (!hasCollision && enemyDistance > 2.0) {
                         if (this.playerMounted) {
                             this.playerHorse.position.x = boundedX;
                             this.playerHorse.position.z = boundedZ;
@@ -1598,13 +1661,18 @@
                         const boundedX = Math.max(-100, Math.min(100, newX));
                         const boundedZ = Math.max(-100, Math.min(100, newZ));
                         
-                        // 检查与玩家的碰撞
+                        // 创建新位置向量进行碰撞检测
                         const newEnemyPos = new THREE.Vector3(boundedX, enemyPos.y, boundedZ);
+                        
+                        // 检查与玩家的碰撞
                         const newDistance = newEnemyPos.distanceTo(playerPos);
                         
-                        // 如果距离大于最小碰撞距离，允许移动
+                        // 检查与环境物体的碰撞
+                        const hasCollision = this.checkCollision(newEnemyPos);
+                        
+                        // 如果没有碰撞且距离玩家足够远，允许移动
                         const minDistance = (this.playerMounted || this.enemyMounted) ? 2.5 : 1.5;
-                        if (newDistance > minDistance) {
+                        if (!hasCollision && newDistance > minDistance) {
                             if (this.enemyMounted) {
                                 this.enemyHorse.position.x = boundedX;
                                 this.enemyHorse.position.z = boundedZ;
