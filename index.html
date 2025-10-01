@@ -286,6 +286,12 @@
                 this.currentWeather = 'clear';
                 this.weatherTimer = 0;
                 
+                // 游泳系统
+                this.isSwimming = false;
+                this.mountWaitingPosition = null;
+                this.lakes = [];
+                this.enemySwimming = false;
+                
                 // 建筑系统
                 this.buildings = [];
                 this.tents = [];
@@ -374,7 +380,7 @@
                 // 湖泊
                 const lakeGeometry = new THREE.CircleGeometry(15, 32);
                 const lakeMaterial = new THREE.MeshPhongMaterial({ 
-                    color: 0x4169E1,
+                    color: 0x87CEEB,
                     transparent: true,
                     opacity: 0.8,
                     shininess: 100
@@ -383,6 +389,23 @@
                 lake.rotation.x = -Math.PI / 2;
                 lake.position.set(20, 0.01, -10);
                 this.scene.add(lake);
+                this.lakes.push({ position: { x: 20, z: -10 }, radius: 15 });
+
+                // 第二个湖泊（大湖）
+                const lake2Geometry = new THREE.CircleGeometry(25, 32);
+                const lake2 = new THREE.Mesh(lake2Geometry, lakeMaterial);
+                lake2.rotation.x = -Math.PI / 2;
+                lake2.position.set(-40, 0.01, 30);
+                this.scene.add(lake2);
+                this.lakes.push({ position: { x: -40, z: 30 }, radius: 25 });
+
+                // 第三个湖泊（小湖）
+                const lake3Geometry = new THREE.CircleGeometry(8, 32);
+                const lake3 = new THREE.Mesh(lake3Geometry, lakeMaterial);
+                lake3.rotation.x = -Math.PI / 2;
+                lake3.position.set(60, 0.01, 50);
+                this.scene.add(lake3);
+                this.lakes.push({ position: { x: 60, z: 50 }, radius: 8 });
 
                 // 湖边石头（带碰撞检测）
                 for (let i = 0; i < 8; i++) {
@@ -1368,6 +1391,19 @@
                 return false;
             }
 
+            checkInWater(position) {
+                for (let lake of this.lakes) {
+                    const distance = Math.sqrt(
+                        Math.pow(position.x - lake.position.x, 2) + 
+                        Math.pow(position.z - lake.position.z, 2)
+                    );
+                    if (distance < lake.radius) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
             handleInput() {
                 const speed = this.playerMounted ? 0.15 : 0.1; // 骑马时移动更快
                 let moved = false;
@@ -1417,6 +1453,9 @@
                     // 创建新位置向量进行碰撞检测
                     const newPlayerPos = new THREE.Vector3(boundedX, currentPos.y, boundedZ);
                     
+                    // 检查是否进入水中
+                    const inWater = this.checkInWater(newPlayerPos);
+                    
                     // 检查与敌人的碰撞
                     const enemyPos = this.enemyMounted ? this.enemyHorse.position : this.enemy.position;
                     const enemyDistance = newPlayerPos.distanceTo(enemyPos);
@@ -1430,18 +1469,55 @@
                     // 检查室内边界限制
                     const hasIndoorBoundary = this.isIndoors ? this.checkIndoorBoundary(newPlayerPos) : false;
                     
-                    // 如果没有碰撞且距离敌人足够远，允许移动
-                    if (!hasCollision && !hasCharacterCollision && !hasIndoorBoundary && enemyDistance > 2.0) {
-                        if (this.playerMounted) {
+                    // 处理水中逻辑
+                    if (inWater && this.playerMounted) {
+                        // 骑马状态下进入水中：下马并让坐骑停在岸边
+                        this.mountWaitingPosition = this.playerHorse.position.clone();
+                        this.playerMounted = false;
+                        this.isSwimming = true;
+                        
+                        // 重置腿部姿势
+                        this.playerLeftLeg.rotation.x = 0;
+                        this.playerLeftLeg.rotation.z = 0;
+                        this.playerRightLeg.rotation.x = 0;
+                        this.playerRightLeg.rotation.z = 0;
+                        
+                        // 移除马匹，添加玩家
+                        this.scene.remove(this.playerHorse);
+                        this.scene.add(this.player);
+                        this.player.position.copy(newPlayerPos);
+                        this.player.rotation.y = Math.atan2(rotatedX, rotatedZ);
+                        moved = true;
+                    } else if (!inWater && this.isSwimming) {
+                        // 离开水中：恢复正常状态
+                        this.isSwimming = false;
+                        if (this.mountWaitingPosition && !hasCollision && !hasCharacterCollision && !hasIndoorBoundary && enemyDistance > 2.0) {
+                            // 重新上马
+                            this.playerMounted = true;
+                            this.scene.remove(this.player);
+                            this.playerHorse.position.copy(this.mountWaitingPosition);
+                            this.scene.add(this.playerHorse);
+                            this.playerHorse.add(this.player);
+                            this.player.position.set(0, 1.1, -0.2);
+                            this.mountWaitingPosition = null;
+                        } else if (!hasCollision && !hasCharacterCollision && !hasIndoorBoundary && enemyDistance > 2.0) {
+                            // 步行移动
+                            this.player.position.x = boundedX;
+                            this.player.position.z = boundedZ;
+                            this.player.rotation.y = Math.atan2(rotatedX, rotatedZ);
+                            moved = true;
+                        }
+                    } else if (!hasCollision && !hasCharacterCollision && !hasIndoorBoundary && enemyDistance > 2.0) {
+                        // 正常移动
+                        if (this.playerMounted && !inWater) {
                             this.playerHorse.position.x = boundedX;
                             this.playerHorse.position.z = boundedZ;
                             this.playerHorse.rotation.y = Math.atan2(rotatedX, rotatedZ);
-                        } else {
+                        } else if (!this.playerMounted) {
                             this.player.position.x = boundedX;
                             this.player.position.z = boundedZ;
                             this.player.rotation.y = Math.atan2(rotatedX, rotatedZ);
                         }
-                        
                         moved = true;
                     }
                 }
@@ -2408,6 +2484,9 @@
                         // 创建新位置向量进行碰撞检测
                         const newEnemyPos = new THREE.Vector3(boundedX, enemyPos.y, boundedZ);
                         
+                        // 检查是否进入水中
+                        const inWater = this.checkInWater(newEnemyPos);
+                        
                         // 检查与玩家的碰撞
                         const newDistance = newEnemyPos.distanceTo(playerPos);
                         
@@ -2417,17 +2496,46 @@
                         // 检查与卫士的碰撞
                         const hasCharacterCollision = this.checkCharacterCollision(newEnemyPos, null);
                         
-                        // 如果没有碰撞且距离玩家足够远，允许移动
-                        const minDistance = (this.playerMounted || this.enemyMounted) ? 2.5 : 1.5;
-                        if (!hasCollision && !hasCharacterCollision && newDistance > minDistance) {
-                            if (this.enemyMounted) {
-                                this.enemyHorse.position.x = boundedX;
-                                this.enemyHorse.position.z = boundedZ;
-                                this.enemyHorse.lookAt(playerPos.x, this.enemyHorse.position.y, playerPos.z);
-                            } else {
-                                this.enemy.position.x = boundedX;
-                                this.enemy.position.z = boundedZ;
-                                this.enemy.lookAt(playerPos.x, this.enemy.position.y, playerPos.z);
+                        // 处理敌人水中逻辑
+                        if (inWater && this.enemyMounted) {
+                            // 敌人骑马状态下进入水中：下马
+                            this.enemyMounted = false;
+                            this.enemySwimming = true;
+                            
+                            // 重置腿部姿势
+                            this.enemyLeftLeg.rotation.x = 0;
+                            this.enemyLeftLeg.rotation.z = 0;
+                            this.enemyRightLeg.rotation.x = 0;
+                            this.enemyRightLeg.rotation.z = 0;
+                            
+                            // 移除马匹，添加敌人
+                            this.scene.remove(this.enemyHorse);
+                            this.scene.add(this.enemy);
+                            this.enemy.position.copy(newEnemyPos);
+                            this.enemy.lookAt(playerPos.x, this.enemy.position.y, playerPos.z);
+                        } else if (!inWater && this.enemySwimming) {
+                            // 离开水中：重新上马
+                            this.enemyMounted = true;
+                            this.enemySwimming = false;
+                            this.scene.remove(this.enemy);
+                            this.enemyHorse.position.copy(newEnemyPos);
+                            this.scene.add(this.enemyHorse);
+                            this.enemyHorse.add(this.enemy);
+                            this.enemy.position.set(0, 1.1, -0.2);
+                            this.enemyHorse.lookAt(playerPos.x, this.enemyHorse.position.y, playerPos.z);
+                        } else {
+                            // 正常移动
+                            const minDistance = (this.playerMounted || this.enemyMounted) ? 2.5 : 1.5;
+                            if (!hasCollision && !hasCharacterCollision && newDistance > minDistance) {
+                                if (this.enemyMounted && !inWater) {
+                                    this.enemyHorse.position.x = boundedX;
+                                    this.enemyHorse.position.z = boundedZ;
+                                    this.enemyHorse.lookAt(playerPos.x, this.enemyHorse.position.y, playerPos.z);
+                                } else if (!this.enemyMounted) {
+                                    this.enemy.position.x = boundedX;
+                                    this.enemy.position.z = boundedZ;
+                                    this.enemy.lookAt(playerPos.x, this.enemy.position.y, playerPos.z);
+                                }
                             }
                         }
                         
@@ -2677,7 +2785,15 @@
             updateUI() {
                 document.getElementById('health').textContent = this.playerHealth;
                 document.getElementById('enemyHealth').textContent = this.enemyHealth;
-                document.getElementById('state').textContent = this.playerState;
+                
+                let stateText = this.playerState;
+                if (this.isSwimming) {
+                    stateText += ' (游泳)';
+                } else if (this.playerMounted) {
+                    stateText += ' (骑马)';
+                }
+                document.getElementById('state').textContent = stateText;
+                
                 document.getElementById('attackPose').textContent = this.attackPoses[this.currentPose];
                 
                 // 更新技能冷却显示
@@ -2769,14 +2885,44 @@
                 // 玩家腿部摆动动画（仅在未骑马时）
                 if (this.playerLeftLeg && this.playerRightLeg && !this.playerMounted) {
                     if (this.playerState === 'moving') {
-                        const walkSpeed = 4;
-                        const walkAmount = 0.4;
-                        
-                        this.playerLeftLeg.rotation.x = Math.sin(time * walkSpeed) * walkAmount;
-                        this.playerRightLeg.rotation.x = Math.sin(time * walkSpeed + Math.PI) * walkAmount;
+                        if (this.isSwimming) {
+                            // 游泳动作：腿部水平摆动
+                            const swimSpeed = 3;
+                            const swimAmount = 0.2;
+                            
+                            this.playerLeftLeg.rotation.x = Math.sin(time * swimSpeed) * swimAmount - 0.3;
+                            this.playerRightLeg.rotation.x = Math.sin(time * swimSpeed + Math.PI) * swimAmount - 0.3;
+                            this.playerLeftLeg.rotation.z = Math.sin(time * swimSpeed * 0.5) * 0.1;
+                            this.playerRightLeg.rotation.z = -Math.sin(time * swimSpeed * 0.5) * 0.1;
+                        } else {
+                            // 正常行走
+                            const walkSpeed = 4;
+                            const walkAmount = 0.4;
+                            
+                            this.playerLeftLeg.rotation.x = Math.sin(time * walkSpeed) * walkAmount;
+                            this.playerRightLeg.rotation.x = Math.sin(time * walkSpeed + Math.PI) * walkAmount;
+                            this.playerLeftLeg.rotation.z = 0;
+                            this.playerRightLeg.rotation.z = 0;
+                        }
                     } else {
-                        this.playerLeftLeg.rotation.x = 0;
-                        this.playerRightLeg.rotation.x = 0;
+                        this.playerLeftLeg.rotation.x = this.isSwimming ? -0.3 : 0;
+                        this.playerRightLeg.rotation.x = this.isSwimming ? -0.3 : 0;
+                        this.playerLeftLeg.rotation.z = 0;
+                        this.playerRightLeg.rotation.z = 0;
+                    }
+                }
+                
+                // 玩家手臂游泳动画
+                if (this.playerLeftArm && this.playerRightArm && this.isSwimming && !this.playerMounted) {
+                    if (this.playerState === 'moving') {
+                        const swimSpeed = 2.5;
+                        const swimAmount = 0.4;
+                        
+                        this.playerLeftArm.rotation.x = Math.sin(time * swimSpeed) * swimAmount - 0.2;
+                        this.playerRightArm.rotation.x = Math.sin(time * swimSpeed + Math.PI) * swimAmount - 0.2;
+                    } else {
+                        this.playerLeftArm.rotation.x = -0.2;
+                        this.playerRightArm.rotation.x = -0.2;
                     }
                 }
                 
@@ -2799,14 +2945,30 @@
                 // 敌人腿部摆动动画（仅在未骑马时）
                 if (this.enemyLeftLeg && this.enemyRightLeg && !this.enemyMounted) {
                     if (this.enemyState === 'moving') {
-                        const walkSpeed = 4;
-                        const walkAmount = 0.4;
-                        
-                        this.enemyLeftLeg.rotation.x = Math.sin(time * walkSpeed) * walkAmount;
-                        this.enemyRightLeg.rotation.x = Math.sin(time * walkSpeed + Math.PI) * walkAmount;
+                        if (this.enemySwimming) {
+                            // 敌人游泳动作
+                            const swimSpeed = 3;
+                            const swimAmount = 0.2;
+                            
+                            this.enemyLeftLeg.rotation.x = Math.sin(time * swimSpeed) * swimAmount - 0.3;
+                            this.enemyRightLeg.rotation.x = Math.sin(time * swimSpeed + Math.PI) * swimAmount - 0.3;
+                            this.enemyLeftLeg.rotation.z = Math.sin(time * swimSpeed * 0.5) * 0.1;
+                            this.enemyRightLeg.rotation.z = -Math.sin(time * swimSpeed * 0.5) * 0.1;
+                        } else {
+                            // 正常行走
+                            const walkSpeed = 4;
+                            const walkAmount = 0.4;
+                            
+                            this.enemyLeftLeg.rotation.x = Math.sin(time * walkSpeed) * walkAmount;
+                            this.enemyRightLeg.rotation.x = Math.sin(time * walkSpeed + Math.PI) * walkAmount;
+                            this.enemyLeftLeg.rotation.z = 0;
+                            this.enemyRightLeg.rotation.z = 0;
+                        }
                     } else {
-                        this.enemyLeftLeg.rotation.x = 0;
-                        this.enemyRightLeg.rotation.x = 0;
+                        this.enemyLeftLeg.rotation.x = this.enemySwimming ? -0.3 : 0;
+                        this.enemyRightLeg.rotation.x = this.enemySwimming ? -0.3 : 0;
+                        this.enemyLeftLeg.rotation.z = 0;
+                        this.enemyRightLeg.rotation.z = 0;
                     }
                 }
                 
