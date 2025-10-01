@@ -103,6 +103,7 @@
         <div>Player Health: <span id="health">100</span></div>
         <div>Enemy Health: <span id="enemyHealth">100</span></div>
         <div>State: <span id="state">Idle</span></div>
+        <div>攻击姿势: <span id="attackPose">上段</span></div>
         <div id="skills">
             <div>Q - 旋风斩: <span id="whirlwind">Ready</span></div>
             <div>E - 雷霆击: <span id="thunder">Ready</span></div>
@@ -261,6 +262,11 @@
                 
                 // 牲畜系统
                 this.livestock = [];
+                
+                // 攻击姿势系统
+                this.attackPoses = ['上段', '中段', '下段', '左袈裟', '右袈裟'];
+                this.currentPose = 0;
+                this.attackCount = 0;
                 
                 // 音效系统
                 this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -1263,6 +1269,12 @@
                 if (this.playerState !== 'attacking') {
                     this.playerState = 'attacking';
                     
+                    // 攻击计数和姿势切换
+                    this.attackCount++;
+                    if (this.attackCount % 2 === 0) {
+                        this.currentPose = (this.currentPose + 1) % this.attackPoses.length;
+                    }
+                    
                     if (this.currentWeapon === 'bow') {
                         this.playSound(800, 0.2, 'triangle'); // 弓弦音效
                         this.shootArrow();
@@ -1276,10 +1288,31 @@
                         this.playerRightArm.rotation.z = -Math.PI / 3;
                         this.playerSword.rotation.x = -Math.PI / 4;
                         
-                        // 延迟后挥砍
+                        // 延迟后挥砍 - 根据攻击姿势调整动画
                         setTimeout(() => {
-                            this.playerRightArm.rotation.z = Math.PI / 6;
-                            this.playerSword.rotation.x = Math.PI / 3;
+                            const pose = this.attackPoses[this.currentPose];
+                            switch(pose) {
+                                case '上段':
+                                    this.playerRightArm.rotation.z = Math.PI / 4;
+                                    this.playerSword.rotation.x = Math.PI / 2;
+                                    break;
+                                case '中段':
+                                    this.playerRightArm.rotation.z = Math.PI / 6;
+                                    this.playerSword.rotation.x = Math.PI / 3;
+                                    break;
+                                case '下段':
+                                    this.playerRightArm.rotation.z = -Math.PI / 6;
+                                    this.playerSword.rotation.x = -Math.PI / 4;
+                                    break;
+                                case '左袈裟':
+                                    this.playerRightArm.rotation.z = Math.PI / 3;
+                                    this.playerRightArm.rotation.y = -Math.PI / 4;
+                                    break;
+                                case '右袈裟':
+                                    this.playerRightArm.rotation.z = Math.PI / 3;
+                                    this.playerRightArm.rotation.y = Math.PI / 4;
+                                    break;
+                            }
                             
                             // 检测攻击范围
                             const playerPos = this.playerMounted ? this.playerHorse.position : this.player.position;
@@ -1294,6 +1327,7 @@
                             // 恢复原始姿势
                             setTimeout(() => {
                                 this.playerRightArm.rotation.z = originalRotation;
+                                this.playerRightArm.rotation.y = 0;
                                 this.playerSword.rotation.x = originalSwordRotation;
                                 
                                 if (this.playerState === 'attacking') {
@@ -1742,6 +1776,7 @@
                 document.getElementById('health').textContent = this.playerHealth;
                 document.getElementById('enemyHealth').textContent = this.enemyHealth;
                 document.getElementById('state').textContent = this.playerState;
+                document.getElementById('attackPose').textContent = this.attackPoses[this.currentPose];
                 
                 // 更新技能冷却显示
                 const now = Date.now();
